@@ -1,0 +1,94 @@
+Registers: [A] [B] [@]
+	Minimum size would be 7, reasonible would be more than 50, (something like 64=2^5)
+	[A] and [B]
+		Inputs must by default be 0 so pulsing is ez
+		Standard simple storage. Must be super fast.
+	[@]
+		Current "State" of the computer. (or in other words, what command it's doing right now)
+		Directly connected to tape, and can only get value from tape.
+	[#]
+		The last-known position of the tape. Can be changed independantly of the tape.
+IO Ports: <IN> <OUT>
+	<OUT> A way to send a number from the computer to something else
+		Like a sound machine, LCD display, etc...
+	<IN> A way for something else to send a number to the computer
+		Like a numpad, pressure plate, etc...
+Tape:
+	Length is up to the maximum number stored in a register
+	Keep a counter of current position in tape, compare it against goal when
+		moving to specific location.
+	To keep things simple, only rotate one way (for now).
+	Can be changed without changing [#]
+Signals:
+	Before sending a signal, wait for things to be done. (possible, yet risky
+		exception if it was from the player)
+	{POWER}
+		Starts as off. User can turn it on or off with a lever.
+		Should also have a pulse or button input so it only does {GO} once.
+	{STEP}
+		Starts as off. is a pulse or button.
+
+		When this signal happens,
+			1. Increase [#] by one.
+			2. {GO}
+	{GO}
+		Starts as off. is a pulse or button.
+
+		When this signal happens,
+			1. Rotate tape until it matches [#]
+			2. Waits until {POWER} is on. (this is so it doesn't do things foever)
+			3. Update [@] to the value in the tape.
+
+Instructions:
+WIP (000) (0)
+	Long name:
+		Wipe
+	What it does:
+		1. Set [A] to 0
+		2. Then {STEP}
+	How it does:
+		ez. - Isaac Fritzler, 30 Nov 2020
+IFG (001) (1)
+	Long name:
+		If goto
+	What it does:
+		If [A] is 0
+			1. Update [#] to the value of [B]
+			2. Send {GO}
+		If [A] isn't 0
+			Send {STEP}
+MATH (010) (2)
+	What it does:
+		1. Increases the value stored in [A] by one, and decreases the value stored in [B] by one.
+		2. Then {STEP}
+SW (011) (3)
+	Long name:
+		Swap
+	What it does:
+		1. Swaps the values stored in [A] and [B]
+		2. Then {STEP}
+GET (100) (4)
+	What it does:
+		1. Rotate tape until the tape position equals [B]
+		2. Set [A] to the value in the tape (register is changed)
+		3. {STEP}
+NEX (101) (5)
+	Long name:
+		Get next
+	What it does:
+		1. Rotate the tape once
+		2. Set [A] to the value of the tape
+		3. {STEP}
+IO (110) (6)
+	Long name:
+		Input and output
+	What it does:
+		1. Change the value of <IN> to [B]
+		2. Change the value of [A] to <OUT>
+		3. {STEP}
+SET (111) (7)
+	What it does:
+		1. Rotate tape until the tape position equals [B]
+		2. Set the value in the tape to [A] (tape is changed)
+		3. {STEP}
+
