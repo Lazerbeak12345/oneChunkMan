@@ -69,6 +69,8 @@ SW (011) (3)
 		2. Then {STEP}
 GET (100) (4)
 	What it does:
+		set [A] to val at [B]
+	how it does:
 		1. Rotate tape until the tape position equals [B]
 		2. Set [A] to the value in the tape (register is changed)
 		3. {STEP}
@@ -88,6 +90,8 @@ IO (110) (6)
 		3. {STEP}
 SET (111) (7)
 	What it does:
+		set tape at [B] to [A]
+	How it does:
 		1. Rotate tape until the tape position equals [B]
 		2. Set the value in the tape to [A] (tape is changed)
 		3. {STEP}
