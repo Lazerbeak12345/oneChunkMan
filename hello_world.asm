@@ -25,24 +25,28 @@ of the data that will be stored in said location(s)
 19:NEX
 20#4(counter, start of hellow world)
 21:SW
-22:NEX
-23#42(end of program)
-24:SW
-25:IFG
-26:IO
-27:NEX
-28#20(a reference to the counter above)
-29:SW
-30:GET
-31:SW
-32:MATH
-33:NEX
-34#20
-35:SET
-36:SW
-37:NEX
-38#22(before null check)
-39:SW
-40:WIP
-41:IFG
+22:GET
+23:SW
+24:NEX
+25#42(end of program)
+26:SW
+27:IFG
+28:SW
+29:IO
+30:NEX
+31#20(a reference to the counter above)
+32:SW
+33:GET
+34:SW
+35:MATH
+36:NEX
+37#20
+38:SW
+39:SET
+40:SW
+41:NEX
+42#19(before null check)
+43:SW
+44:WIP
+45:IFG
 
