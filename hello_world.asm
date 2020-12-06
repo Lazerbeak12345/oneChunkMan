@@ -1,13 +1,13 @@
 (This is a assembly file in a custom syntax I made for my uses.
 The syntax is as follows:
 
-- A parenthasis ( starts a comment. Just like lisp's #|, comments can be nested.
-- A close paren ) closes a comment. Note how this is valid syntax.
+- A parenthasis starts a comment.
+- A close paren closes a comment.
 - Sortof like Fortran, all lines that aren't inside a comment require a number. 
 These numbers must be incrementing by one, or a range, if the data to the right 
-allows it. (ranges are in number dash number format)
+allows it. ranges are in number dash number format
 - Immidiatly after the number or range is a character that indicates the nature
-of the data that will be stored in said location(s)
+of the data that will be stored in said locations
   - If the character is a colon : then the rest of the line is the name of the
   instruction that is stored here
   - If the character is a pound # then the rest of the line is a decimal number
