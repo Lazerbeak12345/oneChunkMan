@@ -15,38 +15,45 @@ of the data that will be stored in said locations
   - If the character is a doublequote " then the range between this and the next
   doublequote is character data that will be included in the specified location
   or range. Specifying said location or range is mandatory.
+
+Made for OCMv2.0
 )
 0:NEX
-1#19(after hello world)
+1#15(after hello world)
 2:SW
 3:IFG
 4-17"Hello, World!"
 18#0(C-style trailing null)
-19:NEX
-20#4(counter, start of hellow world)
-21:SW
-22:GET
-23:SW
-24:NEX
-25#42(end of program)
-26:SW
-27:IFG
-28:SW
-29:IO
-30:NEX
-31#20(a reference to the counter above)
+19:DIR (Change to backwards direction)
+20:NEX
+21#18(counter, start of hello world)
+22:SW
+23:GET
+24:SW
+25:NEX
+26#0
+27:DIR (Change to forwards direction)
+28:NEX
+29#49(end of program)
+30:SW
+31:IFG
 32:SW
-33:GET
-34:SW
-35:MATH
-36:NEX
-37#20
-38:SW
-39:SET
-40:SW
-41:NEX
-42#19(before null check)
+33:IO
+34:NEX
+35#14(a reference to the counter above)
+36:SW
+37:GET
+38:MATH
+39:NEX
+40#21(another reference to above counter)
+41:SW
+42:SET
 43:SW
-44:WIP
-45:IFG
+44:NEX
+45#19(before null check)
+46:DIR (Change to backwards direction)
+47:SW
+48:NEX
+49#0
+50:IFG
 
