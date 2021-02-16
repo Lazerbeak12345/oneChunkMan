@@ -1,5 +1,5 @@
 #lang racket/base
-(require brag/support)
+(require brag/support racket/function)
 (module+ test (require rackunit))
 (define (make-tokenizer port)
   (port-count-lines! port)
@@ -49,7 +49,7 @@
                         #:line (line lexeme-start)
                         #:column (col lexeme-start)
                         #:span 1)])])
-    (lambda () (the-lexer port))))
+    (thunk (the-lexer port))))
 (provide make-tokenizer __apt/mt)
 (define (__apt/mt val)
   (apply-tokenizer-maker make-tokenizer val))
