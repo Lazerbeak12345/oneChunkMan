@@ -1,5 +1,6 @@
 #lang racket/base
-(require racket/list)
+(require racket/list racket/function)
+(module+ test (require rackunit))
 (provide symbol->num num->instruction run-ocm-asm)
 (define (symbol->num sym)
   (case sym
@@ -26,6 +27,21 @@
             'ocm-asm
             "A number 0 through 7 that can be converted into an instruction"
             num)]))
+(module+ test
+         (check-exn
+           exn:fail:syntax?
+           (thunk (symbol->num 'fake-symbol)))
+         (check-exn
+           exn:fail:contract?
+           (thunk (num->instruction 23)))
+         (define (inst->inst sym)
+           (num->instruction (symbol->num sym)))
+         (for ([inst '(SW IO MATH IFG DIR NEX SET GET)])
+              (check-eqv? inst (inst->inst inst)))
+         (define (instnum->instnum instnum)
+           (symbol->num (num->instruction instnum)))
+         (for ([instnum (in-range 0 7)])
+              (check-eqv? instnum (instnum->instnum instnum))))
 (define (run-ocm-asm #:numbers numbers
                      #:pgm-counter [pgm-counter 0]
                      #:reg-A [reg-A 0]
