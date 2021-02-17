@@ -124,5 +124,9 @@
     [(GET) {PREPAREHOP}
            {SETA}
            {UNHOPSTEP}]
+    ; This code is actually just so it throws errors on test code if I change
+    ; the ISA
     [else (raise-syntax-error inst "instruction not written yet!")]))
-
+; After some serious thought, it's actually almost (if not completly)
+; impossible to test this in a reasonable mannar without a halt funciton. I
+; will first make ISA OCM 4.0 before finalizing this program
