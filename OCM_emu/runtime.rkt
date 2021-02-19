@@ -53,13 +53,26 @@
            (symbol->num (num->instruction instnum)))
          (for ([instnum (in-range 0 7)])
               (check-eqv? instnum (instnum->instnum instnum))))
+; TODO turn these into params
+; TODO test these being a different size
 (define MAX_INT #b11111111)
+(define TAPE_SIZE MAX_INT)
 (define (run-ocm-asm #:numbers numbers
                      #:pgm-counter [pgm-counter 0]
                      #:reg-A [reg-A 0]
                      #:reg-B [reg-B 0]
                      #:direction [DIRECTION #t]
                      #:overflow [OVERFLOW #f])
+  (define (pad-end-if-needed)
+    (unless (or (pgm-counter . < . (length numbers))
+                (pgm-counter . > . TAPE_SIZE))
+      (displayln (format "padding...~a" (length numbers)))
+      (set! numbers (append numbers
+                            (build-list (- (+ pgm-counter 1)
+                                           (length numbers))
+                                        (lambda(a) 0))))
+      (displayln (format "after padding ~a" (length numbers)))))
+  (pad-end-if-needed)
   (display (format "tape-loc: ~a" pgm-counter))
   (define inst-v (list-ref numbers pgm-counter))
   (define inst (num->instruction inst-v))
@@ -146,13 +159,8 @@
             {SETA}
             {STEP}]
     [(SET) {PREPAREHOP}
-           (if (pgm-counter . < . (length numbers))
-               (set! numbers (list-set numbers pgm-counter reg-A))
-               (set! numbers (append
-                               numbers
-                               (build-list (- pgm-counter (length numbers))
-                                           (lambda(a) 0))
-                               (list reg-A))))
+           (pad-end-if-needed)
+           (set! numbers (list-set numbers pgm-counter reg-A))
            (displayln (format "numbers ~a" numbers))
            {UNHOPSTEP}]
     [(GET) {PREPAREHOP}
@@ -229,7 +237,17 @@
                            '(NEXT HALT SWAP SUBTRACT NEXT 6 DIRB SWAP IFGOTO))
                          '((3 1 2 12 3 6 8 2 6) 1 1 6 #f #t)
                          "Test IFGOTO backwards")
-           ; TODO Also allow for OOB forwards and backwwards
+           (check-equal?
+             (test-pgm
+               '(NEXT 5 SWAP NEXT HALT DIRB SET NEXT 1 SWAP SUBTRACT NEXT 3
+                      SWAP DIRF IFGOTO))
+             `(,(append '(1 5 2 3 1 8 5 3 1 2 12 3 3 2 7 6)
+                        (build-list (- TAPE_SIZE 16)
+                                    (lambda(a)
+                                      0)))
+                0 1 3 #t #f)
+             "Test IFGOTO overflow forwards")
+           ; TODO Also allow for OOB backwwards
            )
          ; TODO things after IFGOTO
          )
