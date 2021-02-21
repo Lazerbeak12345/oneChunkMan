@@ -137,26 +137,23 @@
     {STEP})
   ; TODO catch errors and do a memory dump
   (case inst
+    [(NOP) {STEP}]
+    ; This is mostly for debugging, but I suppose it could be useful
+    [(HALT) (list numbers pgm-counter reg-A reg-B DIRECTION OVERFLOW)] 
     [(SWAP) (define tmp reg-A)
             (set! reg-A reg-B)
             (set! reg-B tmp)
             {STEP}]
-    [(READIN) (set! reg-A (read-byte))
-              {STEP}]
-    [(SENDOUT) (display (integer->char reg-A))
-               {STEP}]
-    [(SUBTRACT) (set! reg-A (- reg-A reg-B))
-                (if (< reg-A 0)
-                  (begin (set! reg-A (modulo reg-A MAX_INT))
-                         (set! OVERFLOW #t))
-                  (set! OVERFLOW #f))
-                {STEP}]
-    [(ADD) (set! reg-A (+ reg-A reg-B))
-           (if (> reg-A MAX_INT)
-               (begin (set! reg-A (modulo reg-A MAX_INT))
-                      (set! OVERFLOW #t))
-               (set! OVERFLOW #f))
-           {STEP}]
+    [(NEXT) {ROTF}
+            {SETA}
+            {STEP}]
+    [(GET) {PREPAREHOP}
+           {SETA}
+           {UNHOPSTEP}]
+    [(SET) {PREPAREHOP}
+           (pad-end-if-needed)
+           (set! numbers (list-set numbers pgm-counter reg-A))
+           {UNHOPSTEP}]
     [(IFGOTO) (if OVERFLOW
                (begin {PREPAREHOP}
                       {GO})
@@ -167,19 +164,22 @@
     [(DIRB) (set! DIRECTION #f)
             ;(displayln (format "{DIRECTION} set to ~a" DIRECTION))
             {STEP}]
-    [(NEXT) {ROTF}
-            {SETA}
-            {STEP}]
-    [(SET) {PREPAREHOP}
-           (pad-end-if-needed)
-           (set! numbers (list-set numbers pgm-counter reg-A))
-           {UNHOPSTEP}]
-    [(GET) {PREPAREHOP}
-           {SETA}
-           {UNHOPSTEP}]
-    [(NOP) {STEP}]
-    ; This is mostly for debugging, but I suppose it could be useful
-    [(HALT) (list numbers pgm-counter reg-A reg-B DIRECTION OVERFLOW)] 
+    [(READIN) (set! reg-A (read-byte))
+              {STEP}]
+    [(SENDOUT) (display (integer->char reg-A))
+               {STEP}]
+    [(ADD) (set! reg-A (+ reg-A reg-B))
+           (if (> reg-A MAX_INT)
+               (begin (set! reg-A (modulo reg-A MAX_INT))
+                      (set! OVERFLOW #t))
+               (set! OVERFLOW #f))
+           {STEP}]
+    [(SUBTRACT) (set! reg-A (- reg-A reg-B))
+                (if (< reg-A 0)
+                  (begin (set! reg-A (modulo reg-A MAX_INT))
+                         (set! OVERFLOW #t))
+                  (set! OVERFLOW #f))
+                {STEP}]
     ; This code is actually just so it throws errors on test code if I change
     ; the ISA
     [else (raise-syntax-error inst "instruction not written yet!")]))
