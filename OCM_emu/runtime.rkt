@@ -57,6 +57,7 @@
 ; TODO test these being a different size
 (define MAX_INT #b111111)
 (define TAPE_SIZE MAX_INT)
+; TODO make debugger output param/port that defautls to current input port
 (define (run-ocm-asm #:numbers numbers
                      #:pgm-counter [pgm-counter 0]
                      #:reg-A [reg-A 0]
@@ -66,38 +67,40 @@
   (define (pad-end-if-needed)
     (unless (or (pgm-counter . < . (length numbers))
                 (pgm-counter . > . TAPE_SIZE))
-      (displayln (format "padding...~a" (length numbers)))
+      ;(displayln (format "padding...~a" (length numbers)))
       (set! numbers (append numbers
                             (build-list (- (+ pgm-counter 1)
                                            (length numbers))
                                         (lambda(a) 0))))
-      (displayln (format "after padding ~a" (length numbers)))))
+      ;(displayln (format "after padding ~a" (length numbers)))
+      ))
   (pad-end-if-needed)
-  (display (format "tape-loc: ~a" pgm-counter))
+  ;(display (format "tape-loc: ~a" pgm-counter))
   (define inst-v (list-ref numbers pgm-counter))
   (define inst (num->instruction inst-v))
-  (displayln (format (string-append "\t[@] ~a(~a)\t[A] ~a\t[B] ~a\t"
-                                    "{DIRECTION} ~a\t{OVERFLOW}~a")
-                     inst-v
-                     inst
-                     reg-A
-                     reg-B
-                     DIRECTION
-                     OVERFLOW))
-  (displayln (format "memory dump: ~a" numbers))
+  ;(displayln (format (string-append "\t[@] ~a(~a)\t[A] ~a\t[B] ~a\t"
+  ;                                  "{DIRECTION} ~a\t{OVERFLOW}~a")
+  ;                   inst-v
+  ;                   inst
+  ;                   reg-A
+  ;                   reg-B
+  ;                   DIRECTION
+  ;                   OVERFLOW))
+  ;(displayln (format "memory dump: ~a" numbers))
   (define (wait-for-POWER)
-    (displayln "{POWER}?")
-    (displayln "{POWER} is on"))
+    ;(displayln "{POWER}?")
+    ;(displayln "{POWER} is on")
+    (void))
   (define {PREPAREHOP}
-    (displayln "{PREPAREHOP}")
+    ;(displayln "{PREPAREHOP}")
     (set! pgm-counter (modulo ((if DIRECTION + -)
                                pgm-counter
                                (+ 1 reg-B))
                               MAX_INT)))
   (define {GO}
-    (displayln "{GO}")
+    ;(displayln "{GO}")
     (wait-for-POWER)
-    (displayln "next instruction")
+    ;(displayln "next instruction")
     (run-ocm-asm #:numbers numbers
                  #:pgm-counter pgm-counter
                  #:reg-A reg-A
@@ -105,15 +108,15 @@
                  #:direction DIRECTION
                  #:overflow OVERFLOW))
   (define {ROTF}
-    (displayln "{ROTF}")
+    ;(displayln "{ROTF}")
     (set! pgm-counter (modulo (+ 1 pgm-counter)
                               MAX_INT)))
   (define {STEP}
-    (displayln "{STEP}")
+    ;(displayln "{STEP}")
     {ROTF}
     {GO})
   (define {SETA}
-    (displayln "{SETA}")
+    ;(displayln "{SETA}")
     (if (pgm-counter . < . (length numbers))
         (set! reg-A (list-ref numbers pgm-counter))
         (set! reg-A 0))
@@ -125,12 +128,12 @@
                 MAX_INT)
         reg-A)))
   (define {UNHOPSTEP}
-    (displayln "{UNHOPSTEP}")
+    ;(displayln "{UNHOPSTEP}")
     (set! DIRECTION (not DIRECTION))
-    (println pgm-counter)
+    ;(println pgm-counter)
     {PREPAREHOP}
     (set! DIRECTION (not DIRECTION))
-    (println pgm-counter)
+    ;(println pgm-counter)
     {STEP})
   ; TODO catch errors and do a memory dump
   (case inst
@@ -153,10 +156,10 @@
                       {GO})
                {STEP})]
     [(DIRF) (set! DIRECTION #t)
-            (displayln (format "{DIRECTION} set to ~a" DIRECTION))
+            ;(displayln (format "{DIRECTION} set to ~a" DIRECTION))
             {STEP}]
     [(DIRB) (set! DIRECTION #f)
-            (displayln (format "{DIRECTION} set to ~a" DIRECTION))
+            ;(displayln (format "{DIRECTION} set to ~a" DIRECTION))
             {STEP}]
     [(NEXT) {ROTF}
             {SETA}
@@ -265,7 +268,15 @@
                            (thunk (test-pgm '(READIN HALT))))
                          '((9 1) 1 35 0 #t #f)
                          "Test readin")
-           )
+           (test-case
+             "test sendout"
+             (define result (void))
+             (define str-result
+               (with-output-to-string
+                 (thunk (set! result (test-pgm '(NEXT 23 SENDOUT HALT))))))
+             (check-equal? result '((3 23 10 1) 3 23 0 #t #f))
+             (check-equal? str-result
+                           (list->string (list (integer->char 23))))))
          #|(test-case
            "Tests for math"
            )|#)
