@@ -53,10 +53,11 @@
            (symbol->num (num->instruction instnum)))
          (for ([instnum (in-range 0 7)])
               (check-eqv? instnum (instnum->instnum instnum))))
-; TODO test these being a different size
 (define MAX_INT (make-parameter #b111111))
 (define TAPE_SIZE (make-parameter (MAX_INT)))
-; TODO make debugger output param/port that defautls to current input port
+(define debugger-port (make-parameter (open-output-string)
+                                      ;(current-output-port)
+                                      ))
 (define (run-ocm-asm #:numbers numbers
                      #:pgm-counter [pgm-counter 0]
                      #:reg-A [reg-A 0]
@@ -66,40 +67,39 @@
   (define (pad-end-if-needed)
     (unless (or (pgm-counter . < . (length numbers))
                 (pgm-counter . > . (TAPE_SIZE)))
-      ;(displayln (format "padding...~a" (length numbers)))
+      (displayln (format "padding...~a" (length numbers)) (debugger-port))
       (set! numbers (append numbers
                             (build-list (- (+ pgm-counter 1)
                                            (length numbers))
                                         (lambda(a) 0))))
-      ;(displayln (format "after padding ~a" (length numbers)))
-      ))
+      (displayln (format "after padding ~a" (length numbers)) (debugger-port))))
   (pad-end-if-needed)
-  ;(display (format "tape-loc: ~a" pgm-counter))
+  (display (format "tape-loc: ~a" pgm-counter) (debugger-port))
   (define inst-v (list-ref numbers pgm-counter))
   (define inst (num->instruction inst-v))
-  ;(displayln (format (string-append "\t[@] ~a(~a)\t[A] ~a\t[B] ~a\t"
-  ;                                  "{DIRECTION} ~a\t{OVERFLOW}~a")
-  ;                   inst-v
-  ;                   inst
-  ;                   reg-A
-  ;                   reg-B
-  ;                   DIRECTION
-  ;                   OVERFLOW))
-  ;(displayln (format "memory dump: ~a" numbers))
+  (displayln (format (string-append "\t[@] ~a(~a)\t[A] ~a\t[B] ~a\t"
+                                    "{DIRECTION} ~a\t{OVERFLOW}~a")
+                     inst-v
+                     inst
+                     reg-A
+                     reg-B
+                     DIRECTION
+                     OVERFLOW) (debugger-port))
+  (displayln (format "memory dump: ~a" numbers) (debugger-port))
   (define (wait-for-POWER)
-    ;(displayln "{POWER}?")
-    ;(displayln "{POWER} is on")
+    (displayln "{POWER}?" (debugger-port))
+    (displayln "{POWER} is on" (debugger-port))
     (void))
   (define {PREPAREHOP}
-    ;(displayln "{PREPAREHOP}")
+    (displayln "{PREPAREHOP}" (debugger-port))
     (set! pgm-counter (modulo ((if DIRECTION + -)
                                pgm-counter
                                (+ 1 reg-B))
                               (MAX_INT))))
   (define {GO}
-    ;(displayln "{GO}")
+    (displayln "{GO}" (debugger-port))
     (wait-for-POWER)
-    ;(displayln "next instruction")
+    (displayln "next instruction" (debugger-port))
     (run-ocm-asm #:numbers numbers
                  #:pgm-counter pgm-counter
                  #:reg-A reg-A
@@ -107,15 +107,15 @@
                  #:direction DIRECTION
                  #:overflow OVERFLOW))
   (define {ROTF}
-    ;(displayln "{ROTF}")
+    (displayln "{ROTF}" (debugger-port))
     (set! pgm-counter (modulo (+ 1 pgm-counter)
                               (MAX_INT))))
   (define {STEP}
-    ;(displayln "{STEP}")
+    (displayln "{STEP}" (debugger-port))
     {ROTF}
     {GO})
   (define {SETA}
-    ;(displayln "{SETA}")
+    (displayln "{SETA}" (debugger-port))
     (if (pgm-counter . < . (length numbers))
         (set! reg-A (list-ref numbers pgm-counter))
         (set! reg-A 0))
@@ -127,14 +127,13 @@
                 (MAX_INT))
         reg-A)))
   (define {UNHOPSTEP}
-    ;(displayln "{UNHOPSTEP}")
+    (displayln "{UNHOPSTEP}" (debugger-port))
     (set! DIRECTION (not DIRECTION))
-    ;(println pgm-counter)
+    (println pgm-counter (debugger-port))
     {PREPAREHOP}
     (set! DIRECTION (not DIRECTION))
-    ;(println pgm-counter)
+    (println pgm-counter (debugger-port))
     {STEP})
-  ; TODO catch errors and do a memory dump
   (case inst
     [(NOP) {STEP}]
     ; This is mostly for debugging, but I suppose it could be useful
@@ -158,10 +157,12 @@
                       {GO})
                {STEP})]
     [(DIRF) (set! DIRECTION #t)
-            ;(displayln (format "{DIRECTION} set to ~a" DIRECTION))
+            (displayln (format "{DIRECTION} set to ~a" DIRECTION)
+                       (debugger-port))
             {STEP}]
     [(DIRB) (set! DIRECTION #f)
-            ;(displayln (format "{DIRECTION} set to ~a" DIRECTION))
+            (displayln (format "{DIRECTION} set to ~a" DIRECTION)
+                       (debugger-port))
             {STEP}]
     [(READIN) (set! reg-A (read-byte))
               {STEP}]
