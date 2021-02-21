@@ -55,7 +55,7 @@
               (check-eqv? instnum (instnum->instnum instnum))))
 ; TODO turn these into params
 ; TODO test these being a different size
-(define MAX_INT #b11111111)
+(define MAX_INT #b111111)
 (define TAPE_SIZE MAX_INT)
 (define (run-ocm-asm #:numbers numbers
                      #:pgm-counter [pgm-counter 0]
@@ -90,13 +90,10 @@
     (displayln "{POWER} is on"))
   (define {PREPAREHOP}
     (displayln "{PREPAREHOP}")
-    ;(displayln (format "before ph [B]~a\tcounter ~a" reg-B pgm-counter))
     (set! pgm-counter (modulo ((if DIRECTION + -)
                                pgm-counter
                                (+ 1 reg-B))
-                              MAX_INT))
-    ;(displayln (format "after ph [B]~a\tcounter ~a" reg-B pgm-counter))
-    )
+                              MAX_INT)))
   (define {GO}
     (displayln "{GO}")
     (wait-for-POWER)
@@ -119,7 +116,14 @@
     (displayln "{SETA}")
     (if (pgm-counter . < . (length numbers))
         (set! reg-A (list-ref numbers pgm-counter))
-        (set! reg-A 0)))
+        (set! reg-A 0))
+    (when (reg-A . > . MAX_INT)
+      (raise-argument-error
+        'SETA-signal
+        (format (string-append "register [A] should be set to a number no"
+                               " higher than ~a, the MAX_INT")
+                MAX_INT)
+        reg-A)))
   (define {UNHOPSTEP}
     (displayln "{UNHOPSTEP}")
     (set! DIRECTION (not DIRECTION))
@@ -134,11 +138,10 @@
             (set! reg-A reg-B)
             (set! reg-B tmp)
             {STEP}]
-    [(IO) (display (format "new <OUT>: '~a' ~a\n set <IN>: "
-                           (integer->char reg-A)
-                           reg-A))
-          (set! reg-B (char->integer (read-char)))
-          {STEP}]
+    [(READIN) (set! reg-A (read-byte))
+              {STEP}]
+    [(SENDOUT) (display (integer->char reg-A))
+               {STEP}]
     [(SUBTRACT) (set! reg-A (- reg-A reg-B))
                 (if (< reg-A 0)
                   (begin (set! reg-A (modulo reg-A MAX_INT))
@@ -161,7 +164,6 @@
     [(SET) {PREPAREHOP}
            (pad-end-if-needed)
            (set! numbers (list-set numbers pgm-counter reg-A))
-           (displayln (format "numbers ~a" numbers))
            {UNHOPSTEP}]
     [(GET) {PREPAREHOP}
            {SETA}
@@ -173,6 +175,7 @@
     ; the ISA
     [else (raise-syntax-error inst "instruction not written yet!")]))
 (module+ test
+         (require racket/port)
          (define (test-pgm program)
            (run-ocm-asm #:numbers (for/list ([value program])
                                             (cond [(symbol? value)
@@ -183,46 +186,47 @@
                        '((1) 0 0 0 #t #f) "Test HALT")
          (check-equal? (test-pgm '(NOP HALT))
                        '((0 1) 1 0 0 #t #f) "Test NOP")
-         (check-equal? (test-pgm '(NEXT 101 HALT))
-                       '((3 101 1) 2 101 0 #t #f) "Test NEXT")
-         (check-equal? (test-pgm '(NEXT 101 SWAP HALT))
-                       '((3 101 2 1) 3 0 101 #t #f) "Test basic SWAP")
-         (check-equal? (test-pgm '(NEXT 101 SWAP NEXT 39 SWAP HALT))
-                       '((3 101 2 3 39 2 1) 6 101 39 #t #f)
+         (check-equal? (test-pgm '(NEXT 10 HALT))
+                       '((3 10 1) 2 10 0 #t #f) "Test NEXT")
+         (check-equal? (test-pgm '(NEXT 10 SWAP HALT))
+                       '((3 10 2 1) 3 0 10 #t #f) "Test basic SWAP")
+         (check-equal? (test-pgm '(NEXT 10 SWAP NEXT 39 SWAP HALT))
+                       '((3 10 2 3 39 2 1) 6 10 39 #t #f)
                        "Test double SWAP")
          (check-equal? (test-pgm '(NEXT 3 HALT SWAP))
                        '((3 3 1 2) 2 3 0 #t #f)
                        "Test that halt doesn't do anything afterwards")
          (test-case
            "Tests for GET"
-           (check-equal? (test-pgm '(NEXT 1 SWAP GET HALT 73))
-                         '((3 1 2 4 1 73) 4 73 1 #t #f)
+           (check-equal? (test-pgm '(NEXT 1 SWAP GET HALT 37))
+                         '((3 1 2 4 1 37) 4 37 1 #t #f)
                          "Test GET forwards")
-           (check-equal? (test-pgm '(NEXT 3 SWAP GET HALT))
-                         '((3 3 2 4 1) 4 0 3 #t #f)
+           (check-equal? (test-pgm '(NEXT 19 SWAP NEXT 3 SWAP GET HALT))
+                         '((3 19 2 3 3 2 4 1) 7 0 3 #t #f)
                          "Test GET out of range forwards")
-           (check-equal? (test-pgm '(NEXT 291 NEXT 4 SWAP DIRB GET HALT))
-                         '((3 291 3 4 2 8 4 1) 7 291 4 #f #f)
+           (check-equal? (test-pgm '(NEXT 19 NEXT 4 SWAP DIRB GET HALT))
+                         '((3 19 3 4 2 8 4 1) 7 19 4 #f #f)
                          "Test GET backwards")
            (check-equal? (test-pgm '(NEXT 4 SWAP DIRB GET HALT))
                          '((3 4 2 8 4 1) 5 0 4 #f #f)
                          "Test GET out of range backwards"))
          (test-case
            "Tests for SET"
-           (check-equal? (test-pgm '(NEXT 1 SWAP NEXT 73 SET HALT 87))
-                         '((3 1 2 3 73 5 1 73) 6 73 1 #t #f)
+           (check-equal? (test-pgm '(NEXT 1 SWAP NEXT 37 SET HALT 87))
+                         '((3 1 2 3 37 5 1 37) 6 37 1 #t #f)
                          "Test SET forwards")
            (check-equal? (test-pgm '(NEXT 3 SWAP NEXT 9 SET HALT))
                          '((3 3 2 3 9 5 1 0 0 9) 6 9 3 #t #f)
                          "Test SET out of range forwards")
-           (check-equal? (test-pgm '(NEXT 291 NEXT 6 SWAP NEXT 7 DIRB SET HALT))
+           (check-equal? (test-pgm '(NEXT 19 NEXT 6 SWAP NEXT 7 DIRB SET HALT))
                          '((3 7 3 6 2 3 7 8 5 1) 9 7 6 #f #f)
                          "Test SET backwards")
-           (check-equal? (test-pgm '(NEXT 248 SWAP NEXT 37 DIRB SET HALT))
-                         '((3 248 2 3 37 8 5 1 0 0 0 0 37) 7 37 248 #f #f)
-                         "Test SET out of range backwards"))
+           (let ([d (- TAPE_SIZE 7)])
+             (check-equal? (test-pgm `(NEXT ,d SWAP NEXT 37 DIRB SET HALT))
+                           `((3 ,d 2 3 37 8 5 1 0 0 0 0 37) 7 37 ,d #f #f)
+                           "Test SET out of range backwards")))
          (test-case
-           "Tests for IFGOTO"
+           "Tests for IFGOTO and DIRF and DIRB"
            (check-equal? (test-pgm '(IFGOTO HALT))
                          '((6 1) 1 0 0 #t #f)
                          "Test IFGOTO no jump forwards")
@@ -243,12 +247,26 @@
                       SWAP DIRF IFGOTO))
              `(,(append '(1 5 2 3 1 8 5 3 1 2 12 3 3 2 7 6)
                         (build-list (- TAPE_SIZE 16)
-                                    (lambda(a)
-                                      0)))
+                                    (lambda(a) 0)))
                 0 1 3 #t #f)
              "Test IFGOTO overflow forwards")
-           ; TODO Also allow for OOB backwwards
+           (check-equal?
+             (test-pgm '(DIRB NEXT 5 SWAP NEXT HALT SET NEXT 14 SWAP IFGOTO))
+             `(,(append '(1 3 5 2 3 1 5 3 14 2 6)
+                        (build-list (- TAPE_SIZE 11)
+                                    (lambda(a)
+                                      0)))
+                0 5 14 #f #f)
+             "Test IFGOTO overflow backwards"))
+         (test-case
+           "Tests for gpio"
+           (check-equal? (with-input-from-string
+                           (list->string (list (integer->char 35)))
+                           (thunk (test-pgm '(READIN HALT))))
+                         '((9 1) 1 35 0 #t #f)
+                         "Test readin")
            )
-         ; TODO things after IFGOTO
-         )
+         #|(test-case
+           "Tests for math"
+           )|#)
 
