@@ -264,8 +264,7 @@
              (test-pgm '(DIRB NEXT 5 SWAP NEXT HALT SET NEXT 14 SWAP IFGOTO))
              `(,(append '(1 3 5 2 3 1 5 3 14 2 6)
                         (build-list (- TAPE_SIZE 11)
-                                    (lambda(a)
-                                      0)))
+                                    (lambda(a) 0)))
                 0 5 14 #f #f)))
          (test-case
            "Tests for gpio"
