@@ -151,6 +151,12 @@
                          (set! OVERFLOW #t))
                   (set! OVERFLOW #f))
                 {STEP}]
+    [(ADD) (set! reg-A (+ reg-A reg-B))
+           (if (> reg-A MAX_INT)
+               (begin (set! reg-A (modulo reg-A MAX_INT))
+                      (set! OVERFLOW #t))
+               (set! OVERFLOW #f))
+           {STEP}]
     [(IFGOTO) (if OVERFLOW
                (begin {PREPAREHOP}
                       {GO})
@@ -279,7 +285,18 @@
                (thunk (check-equal? (test-pgm '(NEXT 23 SENDOUT HALT))
                                     '((3 23 10 1) 3 23 0 #t #f))))
              (list->string (list (integer->char 23)))))
-         #|(test-case
+         (test-case
            "Tests for math"
-           )|#)
+           (test-equal? "Standard addition"
+                        (test-pgm '(NEXT 2 SWAP NEXT 7 ADD HALT))
+                        '((3 2 2 3 7 11 1) 6 9 2 #t #f))
+           (test-equal? "addition overflow"
+                        (test-pgm `(NEXT ,MAX_INT SWAP NEXT 3 ADD HALT))
+                        `((3 ,MAX_INT 2 3 3 11 1) 6 3 ,MAX_INT #t #t))
+           (test-equal? "subtraction"
+                        (test-pgm '(NEXT 2 SWAP NEXT 7 SUBTRACT HALT))
+                        '((3 2 2 3 7 12 1) 6 5 2 #t #f))
+           (test-equal? "subtraction underflow"
+                        (test-pgm '(NEXT 9 SWAP NEXT 3 SUBTRACT HALT))
+                        `((3 9 2 3 3 12 1) 6 ,(- MAX_INT 6) 9 #t #t))))
 
