@@ -273,15 +273,12 @@
                           (list->string (list (integer->char 35)))
                           (thunk (test-pgm '(READIN HALT))))
                         '((9 1) 1 35 0 #t #f))
-           (test-case
+           (test-equal? 
              "test sendout"
-             (define result (void))
-             (define str-result
-               (with-output-to-string
-                 (thunk (set! result (test-pgm '(NEXT 23 SENDOUT HALT))))))
-             (check-equal? result '((3 23 10 1) 3 23 0 #t #f))
-             (check-equal? str-result
-                           (list->string (list (integer->char 23))))))
+             (with-output-to-string
+               (thunk (check-equal? (test-pgm '(NEXT 23 SENDOUT HALT))
+                                    '((3 23 10 1) 3 23 0 #t #f))))
+             (list->string (list (integer->char 23)))))
          #|(test-case
            "Tests for math"
            )|#)
