@@ -185,89 +185,95 @@
                                                    (symbol->num value)]
                                                   [(number? value)
                                                    value]))))
-         (check-equal? (test-pgm '(HALT))
-                       '((1) 0 0 0 #t #f) "Test HALT")
-         (check-equal? (test-pgm '(NOP HALT))
-                       '((0 1) 1 0 0 #t #f) "Test NOP")
-         (check-equal? (test-pgm '(NEXT 10 HALT))
-                       '((3 10 1) 2 10 0 #t #f) "Test NEXT")
-         (check-equal? (test-pgm '(NEXT 10 SWAP HALT))
-                       '((3 10 2 1) 3 0 10 #t #f) "Test basic SWAP")
-         (check-equal? (test-pgm '(NEXT 10 SWAP NEXT 39 SWAP HALT))
-                       '((3 10 2 3 39 2 1) 6 10 39 #t #f)
-                       "Test double SWAP")
-         (check-equal? (test-pgm '(NEXT 3 HALT SWAP))
-                       '((3 3 1 2) 2 3 0 #t #f)
-                       "Test that halt doesn't do anything afterwards")
+         (test-equal? "Test HALT"
+                      (test-pgm '(HALT))
+                      '((1) 0 0 0 #t #f))
+         (test-equal? "Test NOP"
+                      (test-pgm '(NOP HALT))
+                      '((0 1) 1 0 0 #t #f))
+         (test-equal? "Test NEXT"
+                      (test-pgm '(NEXT 10 HALT))
+                      '((3 10 1) 2 10 0 #t #f))
+         (test-equal? "Test basic SWAP"
+                      (test-pgm '(NEXT 10 SWAP HALT))
+                      '((3 10 2 1) 3 0 10 #t #f))
+         (test-equal? "Test double SWAP"
+                      (test-pgm '(NEXT 10 SWAP NEXT 39 SWAP HALT))
+                      '((3 10 2 3 39 2 1) 6 10 39 #t #f))
+         (test-equal? "Test that halt doesn't do anything afterwards"
+                      (test-pgm '(NEXT 3 HALT SWAP))
+                      '((3 3 1 2) 2 3 0 #t #f))
          (test-case
            "Tests for GET"
-           (check-equal? (test-pgm '(NEXT 1 SWAP GET HALT 37))
-                         '((3 1 2 4 1 37) 4 37 1 #t #f)
-                         "Test GET forwards")
-           (check-equal? (test-pgm '(NEXT 19 SWAP NEXT 3 SWAP GET HALT))
-                         '((3 19 2 3 3 2 4 1) 7 0 3 #t #f)
-                         "Test GET out of range forwards")
-           (check-equal? (test-pgm '(NEXT 19 NEXT 4 SWAP DIRB GET HALT))
-                         '((3 19 3 4 2 8 4 1) 7 19 4 #f #f)
-                         "Test GET backwards")
-           (check-equal? (test-pgm '(NEXT 4 SWAP DIRB GET HALT))
-                         '((3 4 2 8 4 1) 5 0 4 #f #f)
-                         "Test GET out of range backwards"))
+           (test-equal? "Test GET forwards"
+                        (test-pgm '(NEXT 1 SWAP GET HALT 37))
+                        '((3 1 2 4 1 37) 4 37 1 #t #f))
+           (test-equal? "Test GET out of range forwards"
+                        (test-pgm '(NEXT 19 SWAP NEXT 3 SWAP GET HALT))
+                        '((3 19 2 3 3 2 4 1) 7 0 3 #t #f))
+           (test-equal? "Test GET backwards"
+                        (test-pgm '(NEXT 19 NEXT 4 SWAP DIRB GET HALT))
+                        '((3 19 3 4 2 8 4 1) 7 19 4 #f #f))
+           (test-equal? "Test GET out of range backwards"
+                        (test-pgm '(NEXT 4 SWAP DIRB GET HALT))
+                        '((3 4 2 8 4 1) 5 0 4 #f #f)))
          (test-case
            "Tests for SET"
-           (check-equal? (test-pgm '(NEXT 1 SWAP NEXT 37 SET HALT 87))
-                         '((3 1 2 3 37 5 1 37) 6 37 1 #t #f)
-                         "Test SET forwards")
-           (check-equal? (test-pgm '(NEXT 3 SWAP NEXT 9 SET HALT))
-                         '((3 3 2 3 9 5 1 0 0 9) 6 9 3 #t #f)
-                         "Test SET out of range forwards")
-           (check-equal? (test-pgm '(NEXT 19 NEXT 6 SWAP NEXT 7 DIRB SET HALT))
-                         '((3 7 3 6 2 3 7 8 5 1) 9 7 6 #f #f)
-                         "Test SET backwards")
-           (let ([d (- TAPE_SIZE 7)])
-             (check-equal? (test-pgm `(NEXT ,d SWAP NEXT 37 DIRB SET HALT))
-                           `((3 ,d 2 3 37 8 5 1 0 0 0 0 37) 7 37 ,d #f #f)
-                           "Test SET out of range backwards")))
+           (test-equal? "Test SET forwards"
+                        (test-pgm '(NEXT 1 SWAP NEXT 37 SET HALT 87))
+                        '((3 1 2 3 37 5 1 37) 6 37 1 #t #f))
+           (test-equal? "Test SET out of range forwards"
+                        (test-pgm '(NEXT 3 SWAP NEXT 9 SET HALT))
+                        '((3 3 2 3 9 5 1 0 0 9) 6 9 3 #t #f))
+           (test-equal? "Test SET backwards"
+                        (test-pgm '(NEXT 19 NEXT 6 SWAP NEXT 7 DIRB SET HALT))
+                        '((3 7 3 6 2 3 7 8 5 1) 9 7 6 #f #f))
+           (test-case
+             "Test SET out of range backwards"
+             (let ([d (- TAPE_SIZE 7)])
+               (check-equal?
+                 (test-pgm `(NEXT ,d SWAP NEXT 37 DIRB SET HALT))
+                 `((3 ,d 2 3 37 8 5 1 0 0 0 0 37) 7 37 ,d #f #f)))))
          (test-case
            "Tests for IFGOTO and DIRF and DIRB"
-           (check-equal? (test-pgm '(IFGOTO HALT))
-                         '((6 1) 1 0 0 #t #f)
-                         "Test IFGOTO no jump forwards")
-           (check-equal? (test-pgm '(DIRB IFGOTO HALT))
-                         '((8 6 1) 2 0 0 #f #f)
-                         "Test IFGOTO no jump backwards")
-           (check-equal? (test-pgm
-                           '(NEXT 1 SWAP SUBTRACT NEXT 2 SWAP IFGOTO NEXT 97 HALT))
-                         '((3 1 2 12 3 2 2 6 3 97 1) 10 1 2 #t #t)
-                         "Test IFGOTO forwards")
-           (check-equal? (test-pgm
-                           '(NEXT HALT SWAP SUBTRACT NEXT 6 DIRB SWAP IFGOTO))
-                         '((3 1 2 12 3 6 8 2 6) 1 1 6 #f #t)
-                         "Test IFGOTO backwards")
-           (check-equal?
+           (test-equal? "Test IFGOTO no jump forwards"
+                        (test-pgm '(IFGOTO HALT))
+                        '((6 1) 1 0 0 #t #f))
+           (test-equal? "Test IFGOTO no jump backwards"
+                        (test-pgm '(DIRB IFGOTO HALT))
+                        '((8 6 1) 2 0 0 #f #f))
+           (test-equal? "Test IFGOTO forwards"
+                        (test-pgm
+                          '(NEXT 1 SWAP SUBTRACT NEXT 2 SWAP IFGOTO NEXT 97 HALT))
+                        '((3 1 2 12 3 2 2 6 3 97 1) 10 1 2 #t #t))
+           (test-equal? "Test IFGOTO backwards"
+                        (test-pgm
+                          '(NEXT HALT SWAP SUBTRACT NEXT 6 DIRB SWAP IFGOTO))
+                        '((3 1 2 12 3 6 8 2 6) 1 1 6 #f #t))
+           (test-equal?
+             "Test IFGOTO overflow forwards"
              (test-pgm
                '(NEXT 5 SWAP NEXT HALT DIRB SET NEXT 1 SWAP SUBTRACT NEXT 3
                       SWAP DIRF IFGOTO))
              `(,(append '(1 5 2 3 1 8 5 3 1 2 12 3 3 2 7 6)
                         (build-list (- TAPE_SIZE 16)
                                     (lambda(a) 0)))
-                0 1 3 #t #f)
-             "Test IFGOTO overflow forwards")
-           (check-equal?
+                0 1 3 #t #f))
+           (test-equal?
+             "Test IFGOTO overflow backwards"
              (test-pgm '(DIRB NEXT 5 SWAP NEXT HALT SET NEXT 14 SWAP IFGOTO))
              `(,(append '(1 3 5 2 3 1 5 3 14 2 6)
                         (build-list (- TAPE_SIZE 11)
                                     (lambda(a)
                                       0)))
-                0 5 14 #f #f)
-             "Test IFGOTO overflow backwards"))
+                0 5 14 #f #f)))
          (test-case
            "Tests for gpio"
-           (check-equal? (with-input-from-string
-                           (list->string (list (integer->char 35)))
-                           (thunk (test-pgm '(READIN HALT))))
-                         '((9 1) 1 35 0 #t #f)
-                         "Test readin")
+           (test-equal? "Test readin"
+                        (with-input-from-string
+                          (list->string (list (integer->char 35)))
+                          (thunk (test-pgm '(READIN HALT))))
+                        '((9 1) 1 35 0 #t #f))
            (test-case
              "test sendout"
              (define result (void))
