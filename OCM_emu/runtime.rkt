@@ -1,7 +1,12 @@
-#lang racket/base
+#lang typed/racket/base
 (require racket/list racket/function)
-(module+ test (require rackunit))
+(module+ test (require typed/rackunit))
 (provide symbol->num num->instruction run-ocm-asm)
+(define-type Instruction-Symbol (U 'NOP 'HALT 'SWAP 'NEXT 'GET 'SET 'IFGOTO
+                                   'DIRF 'DIRB 'READIN 'SENDOUT 'ADD
+                                   'SUBTRACT))
+(define-predicate instruction-symbol? Instruction-Symbol)
+(: symbol->num (-> Instruction-Symbol Exact-Nonnegative-Integer))
 (define (symbol->num sym)
   (case sym
     [(NOP)       0]
@@ -17,7 +22,11 @@
     [(SENDOUT)  10]
     [(ADD)      11]
     [(SUBTRACT) 12]
+    ; We still need to raise the error because for some reason not having it
+    ; makes typed/racket complain that this function sometimes returns Void,
+    ; even though there's a contract to prevent such a thing
     [else (raise-syntax-error sym "unknown instruction!")]))
+(: num->instruction (-> Exact-Nonnegative-Integer Instruction-Symbol))
 (define (num->instruction num)
   (case num
     [(0)  'NOP     ]
@@ -38,26 +47,45 @@
             "A number 0 through 7 that can be converted into an instruction"
             num)]))
 (module+ test
-         (check-exn
-           exn:fail:syntax?
-           (thunk (symbol->num 'fake-symbol)))
-         (check-exn
-           exn:fail:contract?
-           (thunk (num->instruction 23)))
-         (define (inst->inst sym)
-           (num->instruction (symbol->num sym)))
-         (for ([inst '(NOP HALT SWAP NEXT GET SET IFGOTO DIRF DIRB READIN
-                           SENDOUT ADD SUBTRACT)])
-              (check-eqv? inst (inst->inst inst)))
-         (define (instnum->instnum instnum)
-           (symbol->num (num->instruction instnum)))
-         (for ([instnum (in-range 0 7)])
-              (check-eqv? instnum (instnum->instnum instnum))))
-(define MAX_INT (make-parameter #b111111))
-(define TAPE_SIZE (make-parameter (MAX_INT)))
-(define debugger-port (make-parameter (open-output-string)
-                                      ;(current-output-port)
-                                      ))
+         (test-exn "Test for invalid integer instruction"
+                   exn:fail:contract?
+                   (thunk (num->instruction 23)))
+         (test-case
+           "Instructions to int and back"
+           (for ([inst '(NOP HALT SWAP NEXT GET SET IFGOTO DIRF DIRB READIN
+                             SENDOUT ADD SUBTRACT)])
+                (check-eqv? inst
+                            (num->instruction
+                              (symbol->num
+                                (assert inst instruction-symbol?))))))
+         (test-case
+           "Instruction to symbol and back"
+           (for ([instnum (in-range 0 7)])
+                (check-eqv?
+                  instnum
+                  (symbol->num
+                    (num->instruction
+                      (assert instnum exact-nonnegative-integer?)))))))
+(define MAX_INT : (Parameterof Exact-Nonnegative-Integer)
+  (make-parameter #b111111))
+(define TAPE_SIZE : (Parameterof Exact-Nonnegative-Integer)
+  (make-parameter (MAX_INT)))
+(define debugger-port : (Parameterof Output-Port)
+  (make-parameter (open-output-string)))
+(define-type OCM-asm-ret
+             (List (Listof Exact-Nonnegative-Integer)
+                         Exact-Nonnegative-Integer
+                         Exact-Nonnegative-Integer
+                         Exact-Nonnegative-Integer
+                         Boolean
+                         Boolean))
+(: run-ocm-asm (-> #:numbers (Listof Exact-Nonnegative-Integer)
+                   [#:pgm-counter Exact-Nonnegative-Integer]
+                   [#:reg-A Exact-Nonnegative-Integer]
+                   [#:reg-B Exact-Nonnegative-Integer]
+                   [#:direction Boolean]
+                   [#:overflow Boolean]
+                   OCM-asm-ret))
 (define (run-ocm-asm #:numbers numbers
                      #:pgm-counter [pgm-counter 0]
                      #:reg-A [reg-A 0]
@@ -101,9 +129,9 @@
     (wait-for-POWER)
     (displayln "next instruction" (debugger-port))
     (run-ocm-asm #:numbers numbers
-                 #:pgm-counter pgm-counter
-                 #:reg-A reg-A
-                 #:reg-B reg-B
+                 #:pgm-counter (assert pgm-counter exact-nonnegative-integer?)
+                 #:reg-A (assert reg-A exact-nonnegative-integer?)
+                 #:reg-B (assert reg-B exact-nonnegative-integer?)
                  #:direction DIRECTION
                  #:overflow OVERFLOW))
   (define {ROTF}
@@ -137,7 +165,12 @@
   (case inst
     [(NOP) {STEP}]
     ; This is mostly for debugging, but I suppose it could be useful
-    [(HALT) (list numbers pgm-counter reg-A reg-B DIRECTION OVERFLOW)] 
+    [(HALT) (list numbers
+                  (assert pgm-counter exact-nonnegative-integer?)
+                  (assert reg-A exact-nonnegative-integer?)
+                  (assert reg-B exact-nonnegative-integer?)
+                  DIRECTION
+                  OVERFLOW)] 
     [(SWAP) (define tmp reg-A)
             (set! reg-A reg-B)
             (set! reg-B tmp)
@@ -150,7 +183,9 @@
            {UNHOPSTEP}]
     [(SET) {PREPAREHOP}
            (pad-end-if-needed)
-           (set! numbers (list-set numbers pgm-counter reg-A))
+           (set! numbers (list-set numbers
+                                   pgm-counter
+                                   (assert reg-A exact-nonnegative-integer?)))
            {UNHOPSTEP}]
     [(IFGOTO) (if OVERFLOW
                (begin {PREPAREHOP}
@@ -164,7 +199,7 @@
             (displayln (format "{DIRECTION} set to ~a" DIRECTION)
                        (debugger-port))
             {STEP}]
-    [(READIN) (set! reg-A (read-byte))
+    [(READIN) (set! reg-A (assert (read-byte) exact-nonnegative-integer?))
               {STEP}]
     [(SENDOUT) (display (integer->char reg-A))
                {STEP}]
@@ -185,12 +220,17 @@
     [else (raise-syntax-error inst "instruction not written yet!")]))
 (module+ test
          (require racket/port)
+         (: test-pgm (-> (Listof (U Instruction-Symbol
+                                    Exact-Nonnegative-Integer))
+                         OCM-asm-ret))
          (define (test-pgm program)
-           (run-ocm-asm #:numbers (for/list ([value program])
-                                            (cond [(symbol? value)
-                                                   (symbol->num value)]
-                                                  [(number? value)
-                                                   value]))))
+           (run-ocm-asm #:numbers
+                        (for/list : (Listof Exact-Nonnegative-Integer)
+                                  ([value program])
+                                  (cond [(instruction-symbol? value)
+                                         (symbol->num value)]
+                                        [(exact-nonnegative-integer? value)
+                                         value]))))
          (test-equal? "Test HALT"
                       (test-pgm '(HALT))
                       '((1) 0 0 0 #t #f))
@@ -238,7 +278,8 @@
              "Test SET out of range backwards"
              (let ([d (- (TAPE_SIZE) 7)])
                (check-equal?
-                 (test-pgm `(NEXT ,d SWAP NEXT 37 DIRB SET HALT))
+                 (test-pgm `(NEXT ,(assert d exact-nonnegative-integer?)
+                                  SWAP NEXT 37 DIRB SET HALT))
                  `((3 ,d 2 3 37 8 5 1 0 0 0 0 37) 7 37 ,d #f #f)))))
          (test-case
            "Tests for IFGOTO and DIRF and DIRB"
