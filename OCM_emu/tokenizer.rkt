@@ -1,4 +1,6 @@
 #lang racket/base
+; NOTE as brag/support's lexer is a syntax this means that for the time being,
+; using typed/racket in this file isn't an option
 (require brag/support racket/function)
 (module+ test (require rackunit))
 (define (make-tokenizer port)

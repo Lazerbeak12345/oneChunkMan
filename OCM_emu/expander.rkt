@@ -1,4 +1,4 @@
-#lang racket
+#lang typed/racket
 (require syntax/parse/define "runtime.rkt")
 (provide #%datum)
 (define-simple-macro (ocm-asm-dta num:nat pound dta:nat nl)
