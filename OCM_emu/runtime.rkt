@@ -66,12 +66,18 @@
                   (symbol->num
                     (num->instruction
                       (assert instnum exact-nonnegative-integer?)))))))
-(define MAX_INT : (Parameterof Exact-Nonnegative-Integer)
-  (make-parameter #b111111))
-(define TAPE_SIZE : (Parameterof Exact-Nonnegative-Integer)
+(define BITTAGE : (Parameterof Exact-Nonnegative-Integer)
+  (make-parameter 6))
+(provide BITTAGE)
+; TODO make a type for this
+(define MAX_INT : (Parameterof (-> Exact-Nonnegative-Integer))
+  (make-parameter (thunk (expt 2 (BITTAGE)))))
+(provide MAX_INT)
+(define TAPE_SIZE : (Parameterof (-> Exact-Nonnegative-Integer))
   (make-parameter (MAX_INT)))
 (define debugger-port : (Parameterof Output-Port)
   (make-parameter (open-output-string)))
+(provide debugger-port)
 (define-type OCM-asm-ret
              (List (Listof Exact-Nonnegative-Integer)
                          Exact-Nonnegative-Integer
@@ -94,7 +100,7 @@
                      #:overflow [OVERFLOW #f])
   (define (pad-end-if-needed)
     (unless (or (pgm-counter . < . (length numbers))
-                (pgm-counter . > . (TAPE_SIZE)))
+                (pgm-counter . > . ((TAPE_SIZE))))
       (displayln (format "padding...~a" (length numbers)) (debugger-port))
       (set! numbers (append numbers
                             (build-list (- (+ pgm-counter 1)
@@ -123,7 +129,7 @@
     (set! pgm-counter (modulo ((if DIRECTION + -)
                                pgm-counter
                                (+ 1 reg-B))
-                              (MAX_INT))))
+                              ((MAX_INT)))))
   (define {GO}
     (displayln "{GO}" (debugger-port))
     (wait-for-POWER)
@@ -137,7 +143,7 @@
   (define {ROTF}
     (displayln "{ROTF}" (debugger-port))
     (set! pgm-counter (modulo (+ 1 pgm-counter)
-                              (MAX_INT))))
+                              ((TAPE_SIZE)))))
   (define {STEP}
     (displayln "{STEP}" (debugger-port))
     {ROTF}
@@ -147,12 +153,12 @@
     (if (pgm-counter . < . (length numbers))
         (set! reg-A (list-ref numbers pgm-counter))
         (set! reg-A 0))
-    (when (reg-A . > . (MAX_INT))
+    (when (reg-A . > . ((MAX_INT)))
       (raise-argument-error
         'SETA-signal
         (format (string-append "register [A] should be set to a number no"
                                " higher than ~a, the (MAX_INT)")
-                (MAX_INT))
+                ((MAX_INT)))
         reg-A)))
   (define {UNHOPSTEP}
     (displayln "{UNHOPSTEP}" (debugger-port))
@@ -204,14 +210,14 @@
     [(SENDOUT) (display (integer->char reg-A))
                {STEP}]
     [(ADD) (set! reg-A (+ reg-A reg-B))
-           (if (> reg-A (MAX_INT))
-               (begin (set! reg-A (modulo reg-A (MAX_INT)))
+           (if (> reg-A ((MAX_INT)))
+               (begin (set! reg-A (modulo reg-A ((MAX_INT))))
                       (set! OVERFLOW #t))
                (set! OVERFLOW #f))
            {STEP}]
     [(SUBTRACT) (set! reg-A (- reg-A reg-B))
                 (if (< reg-A 0)
-                  (begin (set! reg-A (modulo reg-A (MAX_INT)))
+                  (begin (set! reg-A (modulo reg-A ((MAX_INT))))
                          (set! OVERFLOW #t))
                   (set! OVERFLOW #f))
                 {STEP}]
@@ -276,7 +282,7 @@
                         '((3 7 3 6 2 3 7 8 5 1) 9 7 6 #f #f))
            (test-case
              "Test SET out of range backwards"
-             (let ([d (- (TAPE_SIZE) 7)])
+             (let ([d (- ((TAPE_SIZE)) 7)])
                (check-equal?
                  (test-pgm `(NEXT ,(assert d exact-nonnegative-integer?)
                                   SWAP NEXT 37 DIRB SET HALT))
@@ -303,14 +309,14 @@
                '(NEXT 5 SWAP NEXT HALT DIRB SET NEXT 1 SWAP SUBTRACT NEXT 3
                       SWAP DIRF IFGOTO))
              `(,(append '(1 5 2 3 1 8 5 3 1 2 12 3 3 2 7 6)
-                        (build-list (- (TAPE_SIZE) 16)
+                        (build-list (- ((TAPE_SIZE)) 16)
                                     (lambda(a) 0)))
                 0 1 3 #t #f))
            (test-equal?
              "Test IFGOTO overflow backwards"
              (test-pgm '(DIRB NEXT 5 SWAP NEXT HALT SET NEXT 14 SWAP IFGOTO))
              `(,(append '(1 3 5 2 3 1 5 3 14 2 6)
-                        (build-list (- (TAPE_SIZE) 11)
+                        (build-list (- ((TAPE_SIZE)) 11)
                                     (lambda(a) 0)))
                 0 5 14 #f #f)))
          (test-case
@@ -332,14 +338,14 @@
                         (test-pgm '(NEXT 2 SWAP NEXT 7 ADD HALT))
                         '((3 2 2 3 7 11 1) 6 9 2 #t #f))
            (test-equal? "addition overflow"
-                        (test-pgm `(NEXT ,(MAX_INT) SWAP NEXT 3 ADD HALT))
-                        `((3 ,(MAX_INT) 2 3 3 11 1) 6 3 ,(MAX_INT) #t #t))
+                        (test-pgm `(NEXT ,((MAX_INT)) SWAP NEXT 3 ADD HALT))
+                        `((3 ,((MAX_INT)) 2 3 3 11 1) 6 3 ,((MAX_INT)) #t #t))
            (test-equal? "subtraction"
                         (test-pgm '(NEXT 2 SWAP NEXT 7 SUBTRACT HALT))
                         '((3 2 2 3 7 12 1) 6 5 2 #t #f))
            (test-equal? "subtraction underflow"
                         (test-pgm '(NEXT 9 SWAP NEXT 3 SUBTRACT HALT))
-                        `((3 9 2 3 3 12 1) 6 ,(- (MAX_INT) 6) 9 #t #t)))
+                        `((3 9 2 3 3 12 1) 6 ,(- ((MAX_INT)) 6) 9 #t #t)))
          ; TODO: test MAX_INT and TAPE_SIZE params
          )
 
