@@ -1,5 +1,5 @@
 #lang typed/racket/base
-(require racket/list racket/function)
+(require racket/function racket/vector)
 (module+ test (require typed/rackunit))
 (provide symbol->num num->instruction run-ocm-asm)
 (define-type Instruction-Symbol (U 'NOP 'HALT 'SWAP 'NEXT 'GET 'SET 'IFGOTO
@@ -79,13 +79,13 @@
   (make-parameter (open-output-string)))
 (provide debugger-port)
 (define-type OCM-asm-ret
-             (List (Listof Exact-Nonnegative-Integer)
-                         Exact-Nonnegative-Integer
-                         Exact-Nonnegative-Integer
-                         Exact-Nonnegative-Integer
-                         Boolean
-                         Boolean))
-(: run-ocm-asm (-> #:numbers (Listof Exact-Nonnegative-Integer)
+             (List (Vectorof Exact-Nonnegative-Integer)
+                   Exact-Nonnegative-Integer
+                   Exact-Nonnegative-Integer
+                   Exact-Nonnegative-Integer
+                   Boolean
+                   Boolean))
+(: run-ocm-asm (-> #:numbers (Mutable-Vectorof Exact-Nonnegative-Integer)
                    [#:pgm-counter Exact-Nonnegative-Integer]
                    [#:reg-A Exact-Nonnegative-Integer]
                    [#:reg-B Exact-Nonnegative-Integer]
@@ -99,19 +99,23 @@
                      #:direction [DIRECTION #t]
                      #:overflow [OVERFLOW #f])
   (define (pad-end-if-needed)
-    (unless (or (pgm-counter . < . (length numbers))
+    (define start-len (vector-length numbers))
+    (unless (or (pgm-counter . < . start-len)
                 (pgm-counter . > . ((TAPE_SIZE))))
-      (displayln (format "padding...~a" (length numbers)) (debugger-port))
-      (set! numbers (append numbers
-                            (build-list (- (+ pgm-counter 1)
-                                           (length numbers))
-                                        (lambda(a) 0))))
-      (displayln (format "after padding ~a" (length numbers)) (debugger-port))))
+      (displayln (format "padding...~a" start-len)
+                 (debugger-port))
+      (set! numbers (vector-append
+                      numbers
+                      (cast (make-vector (- (+ pgm-counter 1)
+                                      start-len)
+                                   0)
+                            (Vectorof Exact-Nonnegative-Integer))))
+      (displayln (format "after padding ~a" (vector-length numbers)) (debugger-port))))
   (pad-end-if-needed)
-  (display (format "tape-loc: ~a" pgm-counter) (debugger-port))
-  (define inst-v (list-ref numbers pgm-counter))
+  (display (format "tape-loc: ~a\t" pgm-counter) (debugger-port))
+  (define inst-v (vector-ref numbers pgm-counter))
   (define inst (num->instruction inst-v))
-  (displayln (format (string-append "\t[@] ~a(~a)\t[A] ~a\t[B] ~a\t"
+  (displayln (format (string-append "[@] ~a(~a)\t[A] ~a\t[B] ~a\t"
                                     "{DIRECTION} ~a\t{OVERFLOW}~a")
                      inst-v
                      inst
@@ -122,8 +126,7 @@
   (displayln (format "memory dump: ~a" numbers) (debugger-port))
   (define (wait-for-POWER)
     (displayln "{POWER}?" (debugger-port))
-    (displayln "{POWER} is on" (debugger-port))
-    (void))
+    (displayln "{POWER} is on" (debugger-port)))
   (define {PREPAREHOP}
     (displayln "{PREPAREHOP}" (debugger-port))
     (set! pgm-counter (modulo ((if DIRECTION + -)
@@ -134,10 +137,11 @@
     (displayln "{GO}" (debugger-port))
     (wait-for-POWER)
     (displayln "next instruction" (debugger-port))
-    (run-ocm-asm #:numbers numbers
-                 #:pgm-counter (assert pgm-counter exact-nonnegative-integer?)
-                 #:reg-A (assert reg-A exact-nonnegative-integer?)
-                 #:reg-B (assert reg-B exact-nonnegative-integer?)
+    (run-ocm-asm #:numbers (cast numbers
+                                 (Mutable-Vectorof Exact-Nonnegative-Integer))
+                 #:pgm-counter (cast pgm-counter Exact-Nonnegative-Integer)
+                 #:reg-A (cast reg-A Exact-Nonnegative-Integer)
+                 #:reg-B (cast reg-B Exact-Nonnegative-Integer)
                  #:direction DIRECTION
                  #:overflow OVERFLOW))
   (define {ROTF}
@@ -150,8 +154,8 @@
     {GO})
   (define {SETA}
     (displayln "{SETA}" (debugger-port))
-    (if (pgm-counter . < . (length numbers))
-        (set! reg-A (list-ref numbers pgm-counter))
+    (if (pgm-counter . < . (vector-length numbers))
+        (set! reg-A (vector-ref numbers pgm-counter))
         (set! reg-A 0))
     (when (reg-A . > . ((MAX_INT)))
       (raise-argument-error
@@ -172,9 +176,9 @@
     [(NOP) {STEP}]
     ; This is mostly for debugging, but I suppose it could be useful
     [(HALT) (list numbers
-                  (assert pgm-counter exact-nonnegative-integer?)
-                  (assert reg-A exact-nonnegative-integer?)
-                  (assert reg-B exact-nonnegative-integer?)
+                  (cast pgm-counter Exact-Nonnegative-Integer)
+                  (cast reg-A Exact-Nonnegative-Integer)
+                  (cast reg-B Exact-Nonnegative-Integer)
                   DIRECTION
                   OVERFLOW)] 
     [(SWAP) (define tmp reg-A)
@@ -189,9 +193,9 @@
            {UNHOPSTEP}]
     [(SET) {PREPAREHOP}
            (pad-end-if-needed)
-           (set! numbers (list-set numbers
-                                   pgm-counter
-                                   (assert reg-A exact-nonnegative-integer?)))
+           (vector-set! numbers
+                        pgm-counter
+                        (cast reg-A Exact-Nonnegative-Integer))
            {UNHOPSTEP}]
     [(IFGOTO) (if OVERFLOW
                (begin {PREPAREHOP}
@@ -205,7 +209,7 @@
             (displayln (format "{DIRECTION} set to ~a" DIRECTION)
                        (debugger-port))
             {STEP}]
-    [(READIN) (set! reg-A (assert (read-byte) exact-nonnegative-integer?))
+    [(READIN) (set! reg-A (cast (read-byte) Exact-Nonnegative-Integer))
               {STEP}]
     [(SENDOUT) (display (integer->char reg-A))
                {STEP}]
@@ -231,93 +235,91 @@
                          OCM-asm-ret))
          (define (test-pgm program)
            (run-ocm-asm #:numbers
-                        (for/list : (Listof Exact-Nonnegative-Integer)
-                                  ([value program])
-                                  (cond [(instruction-symbol? value)
-                                         (symbol->num value)]
-                                        [(exact-nonnegative-integer? value)
-                                         value]))))
+                        (for/vector : (Mutable-Vectorof Exact-Nonnegative-Integer)
+                                    ([value program])
+                                    (cond [(instruction-symbol? value)
+                                           (symbol->num value)]
+                                          [(exact-nonnegative-integer? value)
+                                           value]))))
          (test-equal? "Test HALT"
                       (test-pgm '(HALT))
-                      '((1) 0 0 0 #t #f))
+                      '(#(1) 0 0 0 #t #f))
          (test-equal? "Test NOP"
                       (test-pgm '(NOP HALT))
-                      '((0 1) 1 0 0 #t #f))
+                      '(#(0 1) 1 0 0 #t #f))
          (test-equal? "Test NEXT"
                       (test-pgm '(NEXT 10 HALT))
-                      '((3 10 1) 2 10 0 #t #f))
+                      '(#(3 10 1) 2 10 0 #t #f))
          (test-equal? "Test basic SWAP"
                       (test-pgm '(NEXT 10 SWAP HALT))
-                      '((3 10 2 1) 3 0 10 #t #f))
+                      '(#(3 10 2 1) 3 0 10 #t #f))
          (test-equal? "Test double SWAP"
                       (test-pgm '(NEXT 10 SWAP NEXT 39 SWAP HALT))
-                      '((3 10 2 3 39 2 1) 6 10 39 #t #f))
+                      '(#(3 10 2 3 39 2 1) 6 10 39 #t #f))
          (test-equal? "Test that halt doesn't do anything afterwards"
                       (test-pgm '(NEXT 3 HALT SWAP))
-                      '((3 3 1 2) 2 3 0 #t #f))
+                      '(#(3 3 1 2) 2 3 0 #t #f))
          (test-case
            "Tests for GET"
            (test-equal? "Test GET forwards"
                         (test-pgm '(NEXT 1 SWAP GET HALT 37))
-                        '((3 1 2 4 1 37) 4 37 1 #t #f))
+                        '(#(3 1 2 4 1 37) 4 37 1 #t #f))
            (test-equal? "Test GET out of range forwards"
                         (test-pgm '(NEXT 19 SWAP NEXT 3 SWAP GET HALT))
-                        '((3 19 2 3 3 2 4 1) 7 0 3 #t #f))
+                        '(#(3 19 2 3 3 2 4 1) 7 0 3 #t #f))
            (test-equal? "Test GET backwards"
                         (test-pgm '(NEXT 19 NEXT 4 SWAP DIRB GET HALT))
-                        '((3 19 3 4 2 8 4 1) 7 19 4 #f #f))
+                        '(#(3 19 3 4 2 8 4 1) 7 19 4 #f #f))
            (test-equal? "Test GET out of range backwards"
                         (test-pgm '(NEXT 4 SWAP DIRB GET HALT))
-                        '((3 4 2 8 4 1) 5 0 4 #f #f)))
+                        '(#(3 4 2 8 4 1) 5 0 4 #f #f)))
          (test-case
            "Tests for SET"
            (test-equal? "Test SET forwards"
                         (test-pgm '(NEXT 1 SWAP NEXT 37 SET HALT 87))
-                        '((3 1 2 3 37 5 1 37) 6 37 1 #t #f))
+                        '(#(3 1 2 3 37 5 1 37) 6 37 1 #t #f))
            (test-equal? "Test SET out of range forwards"
                         (test-pgm '(NEXT 3 SWAP NEXT 9 SET HALT))
-                        '((3 3 2 3 9 5 1 0 0 9) 6 9 3 #t #f))
+                        '(#(3 3 2 3 9 5 1 0 0 9) 6 9 3 #t #f))
            (test-equal? "Test SET backwards"
                         (test-pgm '(NEXT 19 NEXT 6 SWAP NEXT 7 DIRB SET HALT))
-                        '((3 7 3 6 2 3 7 8 5 1) 9 7 6 #f #f))
+                        '(#(3 7 3 6 2 3 7 8 5 1) 9 7 6 #f #f))
            (test-case
              "Test SET out of range backwards"
              (let ([d (- ((TAPE_SIZE)) 7)])
                (check-equal?
                  (test-pgm `(NEXT ,(assert d exact-nonnegative-integer?)
                                   SWAP NEXT 37 DIRB SET HALT))
-                 `((3 ,d 2 3 37 8 5 1 0 0 0 0 37) 7 37 ,d #f #f)))))
+                 `(#(3 ,d 2 3 37 8 5 1 0 0 0 0 37) 7 37 ,d #f #f)))))
          (test-case
            "Tests for IFGOTO and DIRF and DIRB"
            (test-equal? "Test IFGOTO no jump forwards"
                         (test-pgm '(IFGOTO HALT))
-                        '((6 1) 1 0 0 #t #f))
+                        '(#(6 1) 1 0 0 #t #f))
            (test-equal? "Test IFGOTO no jump backwards"
                         (test-pgm '(DIRB IFGOTO HALT))
-                        '((8 6 1) 2 0 0 #f #f))
+                        '(#(8 6 1) 2 0 0 #f #f))
            (test-equal? "Test IFGOTO forwards"
                         (test-pgm
                           '(NEXT 1 SWAP SUBTRACT NEXT 2 SWAP IFGOTO NEXT 97 HALT))
-                        '((3 1 2 12 3 2 2 6 3 97 1) 10 1 2 #t #t))
+                        '(#(3 1 2 12 3 2 2 6 3 97 1) 10 1 2 #t #t))
            (test-equal? "Test IFGOTO backwards"
                         (test-pgm
                           '(NEXT HALT SWAP SUBTRACT NEXT 6 DIRB SWAP IFGOTO))
-                        '((3 1 2 12 3 6 8 2 6) 1 1 6 #f #t))
+                        '(#(3 1 2 12 3 6 8 2 6) 1 1 6 #f #t))
            (test-equal?
              "Test IFGOTO overflow forwards"
              (test-pgm
                '(NEXT 5 SWAP NEXT HALT DIRB SET NEXT 1 SWAP SUBTRACT NEXT 3
                       SWAP DIRF IFGOTO))
-             `(,(append '(1 5 2 3 1 8 5 3 1 2 12 3 3 2 7 6)
-                        (build-list (- ((TAPE_SIZE)) 16)
-                                    (lambda(a) 0)))
+             `(,(vector-append '#(1 5 2 3 1 8 5 3 1 2 12 3 3 2 7 6)
+                               (make-vector (- ((TAPE_SIZE)) 16) 0))
                 0 1 3 #t #f))
            (test-equal?
              "Test IFGOTO overflow backwards"
              (test-pgm '(DIRB NEXT 5 SWAP NEXT HALT SET NEXT 14 SWAP IFGOTO))
-             `(,(append '(1 3 5 2 3 1 5 3 14 2 6)
-                        (build-list (- ((TAPE_SIZE)) 11)
-                                    (lambda(a) 0)))
+             `(,(vector-append '#(1 3 5 2 3 1 5 3 14 2 6)
+                               (make-vector (- ((TAPE_SIZE)) 11) 0))
                 0 5 14 #f #f)))
          (test-case
            "Tests for gpio"
@@ -325,27 +327,27 @@
                         (with-input-from-string
                           (list->string (list (integer->char 35)))
                           (thunk (test-pgm '(READIN HALT))))
-                        '((9 1) 1 35 0 #t #f))
+                        '(#(9 1) 1 35 0 #t #f))
            (test-equal? 
              "test sendout"
              (with-output-to-string
                (thunk (check-equal? (test-pgm '(NEXT 23 SENDOUT HALT))
-                                    '((3 23 10 1) 3 23 0 #t #f))))
+                                    '(#(3 23 10 1) 3 23 0 #t #f))))
              (list->string (list (integer->char 23)))))
          (test-case
            "Tests for math"
            (test-equal? "Standard addition"
                         (test-pgm '(NEXT 2 SWAP NEXT 7 ADD HALT))
-                        '((3 2 2 3 7 11 1) 6 9 2 #t #f))
+                        '(#(3 2 2 3 7 11 1) 6 9 2 #t #f))
            (test-equal? "addition overflow"
                         (test-pgm `(NEXT ,((MAX_INT)) SWAP NEXT 3 ADD HALT))
-                        `((3 ,((MAX_INT)) 2 3 3 11 1) 6 3 ,((MAX_INT)) #t #t))
+                        `(#(3 ,((MAX_INT)) 2 3 3 11 1) 6 3 ,((MAX_INT)) #t #t))
            (test-equal? "subtraction"
                         (test-pgm '(NEXT 2 SWAP NEXT 7 SUBTRACT HALT))
-                        '((3 2 2 3 7 12 1) 6 5 2 #t #f))
+                        '(#(3 2 2 3 7 12 1) 6 5 2 #t #f))
            (test-equal? "subtraction underflow"
                         (test-pgm '(NEXT 9 SWAP NEXT 3 SUBTRACT HALT))
-                        `((3 9 2 3 3 12 1) 6 ,(- ((MAX_INT)) 6) 9 #t #t)))
+                        `(#(3 9 2 3 3 12 1) 6 ,(- ((MAX_INT)) 6) 9 #t #t)))
          ; TODO: test MAX_INT and TAPE_SIZE params
          )
 
