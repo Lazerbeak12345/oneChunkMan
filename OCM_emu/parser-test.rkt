@@ -1,34 +1,35 @@
 #lang racket/base
 (require rackunit "tokenizer.rkt" "parser.rkt")
-(check-equal? (parse-to-datum (__apt/mt "(comment)\n"))
-              '(ocm-asm #f)
-              "comments work")
-(check-equal? (parse-to-datum (__apt/mt "123:NUM\n"))
-              '(ocm-asm (ocm-asm-inst 123 #f NUM #f))
-              "instruction rows work")
-(check-equal? (parse-to-datum (__apt/mt "   456:MUN\n"))
-              '(ocm-asm (ocm-asm-inst 456 #f MUN #f))
-              "instruction rows work with space in front")
-(check-equal? (parse-to-datum (__apt/mt "\t456:MUN\n"))
-              '(ocm-asm (ocm-asm-inst 456 #f MUN #f))
-              "instruction rows work with tab in front")
-(check-equal? (parse-to-datum (__apt/mt "123:MANYENDS\n\n\n"))
-              '(ocm-asm (ocm-asm-inst 123 #f MANYENDS #f))
-              "newlines are squashed")
-(check-equal? (parse-to-datum (__apt/mt "12#3\n"))
-              '(ocm-asm (ocm-asm-dta 12 #f 3 #f))
-              "data rows work")
-(check-equal? (parse-to-datum (__apt/mt "1\"howdy!\"\n"))
-              '(ocm-asm (ocm-asm-str 1 "howdy!" #f))
-              "strings work")
-(check-equal? (parse-to-datum (__apt/mt "1-6\"howdy!\"\n"))
-              '(ocm-asm (ocm-asm-str 1 #f 6 "howdy!" #f))
-              "strings with a range work")
-(check-equal? (parse-to-datum
-                (__apt/mt "(comment)\n13:HI\n14#14\n\n3\"crazy!\"\n"))
-              '(ocm-asm
-                 #f
-                 (ocm-asm-inst 13 #f HI #f)
-                 (ocm-asm-dta 14 #f 14 #f)
-                 (ocm-asm-str 3 "crazy!" #f))
-              "mixed stuff works")
+(test-equal? "comments work"
+             (parse-to-datum (__apt/mt "(comment)\n"))
+             '(ocm-asm #f))
+(test-equal? "instruction rows work"
+             (parse-to-datum (__apt/mt ":NUM\n"))
+             '(ocm-asm (ocm-asm-inst #f NUM #f)))
+(test-equal? "instruction rows work with space in front"
+             (parse-to-datum (__apt/mt "   :MUN\n"))
+             '(ocm-asm (ocm-asm-inst #f MUN #f)))
+(test-equal? "instruction rows work with tab in front"
+             (parse-to-datum (__apt/mt "\t:MUN\n"))
+             '(ocm-asm (ocm-asm-inst #f MUN #f)))
+(test-equal? "newlines are squashed"
+             (parse-to-datum (__apt/mt ":MANYENDS\n\n\n"))
+             '(ocm-asm (ocm-asm-inst #f MANYENDS #f)))
+(test-equal? "data rows work"
+             (parse-to-datum (__apt/mt "#3\n"))
+             '(ocm-asm (ocm-asm-dta #f 3 #f)))
+(test-equal? "strings work"
+             (parse-to-datum (__apt/mt "\"howdy!\"\n"))
+             '(ocm-asm (ocm-asm-str "howdy!" #f)))
+(test-equal? "strings with a size work"
+             (parse-to-datum (__apt/mt "6\"howdy!\"\n"))
+             '(ocm-asm (ocm-asm-str 6 "howdy!" #f)))
+(test-equal? "mixed stuff works"
+             (parse-to-datum
+               (__apt/mt "(comment)\n:HI\n#14\n\n3\"crazy!\"\n"))
+             '(ocm-asm
+                #f
+                (ocm-asm-inst #f HI #f)
+                (ocm-asm-dta #f 14 #f)
+                (ocm-asm-str 3 "crazy!" #f)))
+

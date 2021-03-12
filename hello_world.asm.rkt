@@ -7,7 +7,7 @@ The syntax is as follows:
 - Sortof like Fortran, all lines that aren't inside a comment require a number. 
 These numbers must be incrementing by one, or a range, if the data to the right 
 allows it. ranges are in number dash number format
-- Immidiatly after the number or range is a character that indicates the nature
+- Immidiately after the number or range is a character that indicates the nature
 of the data that will be stored in said locations
   - If the character is a colon : then the rest of the line is the name of the
   instruction that is stored here
