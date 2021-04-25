@@ -9,5 +9,4 @@ ocm-asm-inst : COLON-TOK INSTRUCTION-TOK NEWLINE-TOK
 ; Data
 ocm-asm-dta  : VALUE-TOK NUM-TOK NEWLINE-TOK
 ; String
-ocm-asm-str  : NUM-TOK? LITERALS-TOK NEWLINE-TOK
-
+ocm-asm-str  : LITERALS-TOK NEWLINE-TOK

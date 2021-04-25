@@ -66,10 +66,11 @@
 (provide BITTAGE)
 ; TODO make a type for this
 (define MAX_INT : (Parameterof (-> Exact-Nonnegative-Integer))
-  (make-parameter (thunk (expt 2 (BITTAGE)))))
+  (make-parameter (thunk ((expt 2 (BITTAGE)) . - . 1))))
 (provide MAX_INT)
 (define RAM_SIZE : (Parameterof (-> Exact-Nonnegative-Integer))
   (make-parameter (MAX_INT)))
+(provide RAM_SIZE)
 (define debugger-port : (Parameterof Output-Port)
   (make-parameter (open-output-string)))
 (provide debugger-port)

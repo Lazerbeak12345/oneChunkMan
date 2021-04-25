@@ -21,15 +21,11 @@
 (test-equal? "strings work"
              (parse-to-datum (__apt/mt "\"howdy!\"\n"))
              '(ocm-asm (ocm-asm-str "howdy!" #f)))
-(test-equal? "strings with a size work"
-             (parse-to-datum (__apt/mt "6\"howdy!\"\n"))
-             '(ocm-asm (ocm-asm-str 6 "howdy!" #f)))
 (test-equal? "mixed stuff works"
              (parse-to-datum
-               (__apt/mt "(comment)\n:HI\n#14\n\n3\"crazy!\"\n"))
+               (__apt/mt "(comment)\n:HI\n#14\n\n\"crazy!\"\n"))
              '(ocm-asm
                 #f
                 (ocm-asm-inst #f HI #f)
                 (ocm-asm-dta #f 14 #f)
-                (ocm-asm-str 3 "crazy!" #f)))
-
+                (ocm-asm-str "crazy!" #f)))
