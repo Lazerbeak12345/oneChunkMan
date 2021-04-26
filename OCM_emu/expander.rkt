@@ -121,8 +121,22 @@
       [("help" "h" "?" "-h" "--help")
        ; TODO make this work
        (displayln (string-append "Try running the `run` or `memorydump`"
-                                 " subcommands.\nEach of them also support the"
-                                 " `-h` flag for help"))]
+                                 " subcommands.\n"
+                                 "Each of them also support the"
+                                 " `-h` flag for help\n"
+                                 "Lastly, the aliases are as folows.\n"
+                                 " help\n"
+                                 "\th\n"
+                                 "\t?\n"
+                                 "\t-h\n"
+                                 "\t--help\n"
+                                 " memorydump\n"
+                                 "\tdump\n"
+                                 "\tmd\n"
+                                 "\tmd\n"
+                                 "\td\n"
+                                 " run\n"
+                                 "\tr\n"))]
       [else (raise-user-error (format "`~a` is an invalid command. try `help`"
                                       command))])))
 (provide ocm-asm)
