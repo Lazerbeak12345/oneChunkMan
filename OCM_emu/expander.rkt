@@ -11,23 +11,22 @@
 (define-simple-macro (ocm-asm-mb parse-tree:expr)
                      (#%module-begin parse-tree))
 (provide (rename-out [ocm-asm-mb #%module-begin]))
+(define (should-use-ita?)
+  ((BITTAGE) . < . 7)) 
 (define-syntax-parser
   ocm-asm-str
   [(_ data:string nl)
    #:fail-unless (1 . = . (string-length (syntax-e #'data)))
    "string length is not one in implicit char"
-   #`(if ((BITTAGE) . <= . 6)
-         (begin
-           (displayln (format "encodeita2 ~a" data))
-           (list (encode-ITA_2 data)))
+   #`(if (should-use-ita?)
+         (begin (displayln (format "encodeita2 ~a" data))
+                (list (encode-ITA_2 data)))
          (list (char->integer (string-ref data 0))))]
   [(_ data:string nl)
-   #`(apply append
-            (list #,@(for/list ([num (in-range 0 (syntax-e #'len))])
-                               #`(let ([char (string-ref data #,num)])
-                                   (if ((BITTAGE) . <= . 6)
-                                     (encode-ITA_2 (list->string (list char)))
-                                     (list (char->integer char)))))))])
+   #`(if (should-use-ita?)
+         (encode-ITA_2 data)
+         (list #,@(for/list ([char (string->list (syntax-e #'data))])
+                            #`(char->integer #,char))))])
 (provide ocm-asm-str)
 (define-simple-macro
   (ocm-asm items:expr ...)
@@ -39,16 +38,20 @@
          [args (vector-drop pre-args 1)]
          [actualItems
            (thunk
-             (let* ([theItems (apply append (for/list ([item (list items ...)]
+             (let* {[theItems (apply append (for/list ([item (list items ...)]
                                                        #:when (list? item))
                                                       item))]
                     [len (length theItems)]
-                    [iteration-count -1])
+                    [iteration-count -1]
+                    [max-int ((MAX_INT))]}
                (if (len . > . ((RAM_SIZE)))
-                   (raise-user-error "The provided program is too long" len)
+                   (raise-user-error
+                     (format "The provided program is too long max ~a was"
+                             max-int)
+                     len)
                    (for/list ([item theItems])
                              (set! iteration-count (iteration-count . + . 1))
-                             (when (item . > . ((MAX_INT)))
+                             (when (item . > . max-int)
                                (raise-user-error
                                  (format
                                    "The item at ~a in memory is too large"
