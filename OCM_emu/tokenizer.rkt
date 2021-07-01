@@ -243,5 +243,33 @@
                                    #:position 23
                                    #:line 3
                                    #:column 0
-                                   #:span 1))))
+                                   #:span 1)))
+         (test-equal? "strings mixed with content"
+                      (__apt/mt "   12:HI\n   \"hi\"")
+                      (list (token 'WHITESPACE #:skip? #t)
+                            (token 'NUM-TOK 12
+                                   #:position 4
+                                   #:line 1
+                                   #:column 3
+                                   #:span 2)
+                            (token 'COLON-TOK
+                                   #:position 6
+                                   #:line 1
+                                   #:column 5
+                                   #:span 1)
+                            (token 'INSTRUCTION-TOK 'HI
+                                   #:position 7
+                                   #:line 1
+                                   #:column 6
+                                   #:span 2)
+                            (token 'NEWLINE-TOK
+                                   #:position 9
+                                   #:line 1
+                                   #:column 8
+                                   #:span 4)
+                            (token 'LITERALS-TOK "hi"
+                                   #:position 14
+                                   #:line 2
+                                   #:column 4
+                                   #:span 2))))
 
