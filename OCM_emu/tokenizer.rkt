@@ -16,12 +16,12 @@
                                         #:column (+ (col lexeme-start) 1)
                                         #:span (- (pos lexeme-end)
                                                   (pos lexeme-start) 2))]
-            [(:+ "\n") (token 'NEWLINE-TOK
-                              #:position (pos lexeme-start)
-                              #:line (line lexeme-start)
-                              #:column (col lexeme-start)
-                              #:span (- (pos lexeme-end)
-                                        (pos lexeme-start)))]
+            [(:: "\n" (:* whitespace)) (token 'NEWLINE-TOK
+                                              #:position (pos lexeme-start)
+                                              #:line (line lexeme-start)
+                                              #:column (col lexeme-start)
+                                              #:span (- (pos lexeme-end)
+                                                        (pos lexeme-start)))]
             [(:+ whitespace) (token 'WHITESPACE #:skip? #t)]
             [(:+ numeric) (token 'NUM-TOK (string->number lexeme)
                                  #:position (pos lexeme-start)
@@ -36,12 +36,30 @@
                                     #:column (col lexeme-start)
                                     #:span (- (pos lexeme-end)
                                               (pos lexeme-start)))]
+            [(:+ (lower-case . union . "-"))
+             (token 'NAME-TOK
+                    (string->symbol lexeme)
+                    #:position (pos lexeme-start)
+                    #:line (line lexeme-start)
+                    #:column (col lexeme-start)
+                    #:span (- (pos lexeme-end)
+                              (pos lexeme-start)))]
             [":" (token 'COLON-TOK
                         #:position (pos lexeme-start)
                         #:line (line lexeme-start)
                         #:column (col lexeme-start)
                         #:span 1)]
             ["#" (token 'VALUE-TOK
+                        #:position (pos lexeme-start)
+                        #:line (line lexeme-start)
+                        #:column (col lexeme-start)
+                        #:span 1)]
+            ["%" (token 'REFERENCE-TOK
+                        #:position (pos lexeme-start)
+                        #:line (line lexeme-start)
+                        #:column (col lexeme-start)
+                        #:span 1)]
+            ["@" (token 'LABEL-TOK
                         #:position (pos lexeme-start)
                         #:line (line lexeme-start)
                         #:column (col lexeme-start)
@@ -154,6 +172,48 @@
                                    #:position 3
                                    #:line 1
                                    #:column 2
+                                   #:span 1)))
+         (test-equal? "label in front of data"
+                      (__apt/mt ":NEXT\n@label\n#0")
+                      (list (token 'COLON-TOK
+                                   #:position 1
+                                   #:line 1
+                                   #:column 0
+                                   #:span 1)
+                            (token 'INSTRUCTION-TOK 'NEXT
+                                   #:position 2
+                                   #:line 1
+                                   #:column 1
+                                   #:span 4)
+                            (token 'NEWLINE-TOK
+                                   #:position 6
+                                   #:line 1
+                                   #:column 5
+                                   #:span 1)
+                            (token 'LABEL-TOK
+                                   #:position 7
+                                   #:line 2
+                                   #:column 0
+                                   #:span 1)
+                            (token 'NAME-TOK 'label
+                                   #:position 8
+                                   #:line 2
+                                   #:column 1
+                                   #:span 5)
+                            (token 'NEWLINE-TOK
+                                   #:position 13
+                                   #:line 2
+                                   #:column 6
+                                   #:span 1)
+                            (token 'VALUE-TOK
+                                   #:position 14
+                                   #:line 3
+                                   #:column 0
+                                   #:span 1)
+                            (token 'NUM-TOK 0
+                                   #:position 15
+                                   #:line 3
+                                   #:column 1
                                    #:span 1)))
          (test-equal? "comment mixed with content"
                       (__apt/mt "12:HI (comment\nthing)\n3")

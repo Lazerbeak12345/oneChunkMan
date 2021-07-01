@@ -15,6 +15,9 @@
                         [(:+ numeric)
                           (values lexeme 'constant #f
                                   (pos lexeme-start) (pos lexeme-end))]
+                        [(:+ (lower-case . union . "-"))
+                          (values lexeme 'hash-colon-keyword #f
+                                  (pos lexeme-start) (pos lexeme-end))]
                         [(:+ upper-case)
                           (values lexeme 'symbol #f
                                   (pos lexeme-start) (pos lexeme-end))]
