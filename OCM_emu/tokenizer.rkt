@@ -245,7 +245,7 @@
                                    #:column 0
                                    #:span 1)))
          (test-equal? "strings mixed with content"
-                      (__apt/mt "   12:HI\n   \"hi\"")
+                      (__apt/mt "   12:HI\n   \"hi\"\n  @asdf\n  %asdf")
                       (list (token 'WHITESPACE #:skip? #t)
                             (token 'NUM-TOK 12
                                    #:position 4
@@ -271,5 +271,34 @@
                                    #:position 14
                                    #:line 2
                                    #:column 4
-                                   #:span 2))))
-
+                                   #:span 2)
+                            (token 'NEWLINE-TOK
+                                   #:position 17
+                                   #:line 2
+                                   #:column 7
+                                   #:span 3)
+                            (token 'LABEL-TOK
+                                   #:position 20
+                                   #:line 3
+                                   #:column 2
+                                   #:span 1)
+                            (token 'NAME-TOK 'asdf
+                                   #:position 21
+                                   #:line 3
+                                   #:column 3
+                                   #:span 4)
+                            (token 'NEWLINE-TOK
+                                   #:position 25
+                                   #:line 3
+                                   #:column 7
+                                   #:span 3)
+                            (token 'REFERENCE-TOK
+                                   #:position 28
+                                   #:line 4
+                                   #:column 2
+                                   #:span 1)
+                            (token 'NAME-TOK 'asdf
+                                   #:position 29
+                                   #:line 4
+                                   #:column 3
+                                   #:span 4))))
