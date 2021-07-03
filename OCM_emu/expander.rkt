@@ -1,12 +1,25 @@
 #lang racket
 (require syntax/parse/define "encodings.rkt" "runtime.rkt")
 (provide #%datum)
+(define-simple-macro (ocm-asm-row label-list:expr ... data:expr nl)
+                     (begin
+                     (displayln '(ocm-asm-row label-list ... data nl))
+                     (cons (lambda (line-no)
+                             (println "line-no called")
+                             (map (curryr apply (list line-no))
+                                  (list label-list ...)))
+                           data)))
+(provide ocm-asm-row)
 (define-simple-macro (ocm-asm-dta pound dta:nat nl)
-                     (list dta))
+                     (begin
+                     (displayln '(ocm-asm-dta pound dta nl))
+                     (list dta)))
 (provide ocm-asm-dta)
-(define-simple-macro (ocm-asm-inst colon inst:id nl)
+(define-simple-macro (ocm-asm-inst colon inst:id)
                      ; inst is a reference to a number
-                     (list (symbol->num (quote inst))))
+                     (begin
+                     (displayln '(ocm-asm-inst colon inst))
+                     (thunk (list (symbol->num (quote inst))))))
 (provide ocm-asm-inst)
 (define-simple-macro (ocm-asm-mb parse-tree:expr)
                      (#%module-begin parse-tree))
@@ -28,116 +41,120 @@
          (list #,@(for/list ([char (string->list (syntax-e #'data))])
                             #`(char->integer #,char))))])
 (provide ocm-asm-str)
-(define-simple-macro
-  (ocm-asm items:expr ...)
-  (let* ([pre-args (let ([a (current-command-line-arguments)])
+(define (clean-rows items)
+  (let* {[theItems (apply append (for/list ([item items]
+                                                     #:when (list? item))
+                                                    item))]
+             [len (length theItems)]
+             [iteration-count -1]
+             [max-int ((MAX_INT))]}
+             (if (len . > . ((RAM_SIZE)))
+               (raise-user-error
+                 (format "The provided program is too long max ~a was"
+                         max-int)
+                 len)
+               (for/list ([item theItems])
+                         (set! iteration-count (iteration-count . + . 1))
+                         (when (item . > . max-int)
+                           (raise-user-error
+                             (format
+                               "The item at ~a in memory is too large"
+                               iteration-count)
+                             item))
+                         item))))
+(define-simple-macro (println* args:expr ...)
+                     (println (list args ...)))
+(define (ocm-asm-main-run commandName args actualItems)
+     (define new-bittage (BITTAGE))
+     (define new-dbg-port (debugger-port))
+     (command-line
+       #:program commandName
+       #:argv args
+       #:once-each
+       [("-B" "--bittage") => (lambda (flag arg)
+                                (set! new-bittage (string->number arg)))
+                           '("Set the bittage of the emulator"
+                             "the bittage")]
+       [("-v" "--verbose")
+        "Send debug output to stderr"
+        (set! new-dbg-port (current-error-port))])
+     (parameterize ([BITTAGE new-bittage]
+                    [debugger-port new-dbg-port])
+       (run-ocm-asm #:numbers (list->vector (actualItems)))
+       ; Prevents printing when we don't need to
+       (void)))
+
+(define (ocm-asm-main items)
+  (define pre-args (let ([a (current-command-line-arguments)])
                      (if ((vector-length a) . = . 0)
-                         '#("run")
-                         a))]
-         [command (vector-ref pre-args 0)]
-         [args (vector-drop pre-args 1)]
-         [actualItems
-           (thunk
-             (let* {[theItems (apply append (for/list ([item (list items ...)]
-                                                       #:when (list? item))
-                                                      item))]
-                    [len (length theItems)]
-                    [iteration-count -1]
-                    [max-int ((MAX_INT))]}
-               (if (len . > . ((RAM_SIZE)))
-                   (raise-user-error
-                     (format "The provided program is too long max ~a was"
-                             max-int)
-                     len)
-                   (for/list ([item theItems])
-                             (set! iteration-count (iteration-count . + . 1))
-                             (when (item . > . max-int)
-                               (raise-user-error
-                                 (format
-                                   "The item at ~a in memory is too large"
-                                   iteration-count)
-                                 item))
-                             item))))]
-         [commandName (string-append
+                       '#("help")
+                       a)))
+  (define command (vector-ref pre-args 0))
+  (define args (vector-drop pre-args 1))
+  (define actualItems (thunk (clean-rows items)))
+  (define commandName (string-append
                         (path->string (find-system-path 'run-file))
                         " "
-                        command)])
-    (case command
-      [("run" "r")
-       (define new-bittage (BITTAGE))
-       (define new-dbg-port (debugger-port))
-       (command-line
-         #:program commandName
-         #:argv args
-         #:once-each
-         [("-B" "--bittage") => (lambda (flag arg)
-                                  (set! new-bittage (string->number arg)))
-                             '("Set the bittage of the emulator"
-                               "the bittage")]
-         [("-v" "--verbose")
-          "Send debug output to stderr"
-          (set! new-dbg-port (current-error-port))])
-       (parameterize ([BITTAGE new-bittage]
-                      [debugger-port new-dbg-port])
-         (run-ocm-asm #:numbers (list->vector (actualItems)))
-         ; Prevents printing when we don't need to
-         (void))]
-      [("memorydump" "dump" "md" "d")
-       (define big-endian #f)
-       (define decimal #f)
-       (define new-bittage (BITTAGE))
-       (command-line
-         #:program commandName
-         #:argv args
-         #:once-each
-         [("-d" "--decimal")
-          "Print decimal numbers instead of binary numbers. Ignores flags relating to binary"
-          (set! decimal #t)]
-         [("-b" "--big-endian")
-          "Display in big endian form instead of little endian"
-          (set! big-endian #t)]
-         [("-B" "--bittage") => (lambda (flag arg)
-                                  (set! new-bittage (string->number arg)))
-                             '("Set the bittage of the memory dumper"
-                               "the bittage")])
-       ; Read this from bottom to top
-       ((compose1 displayln
-                  (curryr string-join "\n")
-                  (curry map
-                         (if decimal
-                             ~a
-                             (compose1 (if big-endian
-                                           (compose1 list->string
-                                                     reverse
-                                                     string->list)
-                                           identity)
-                                       (curryr ~a
-                                               #:min-width new-bittage
-                                               #:align 'right
-                                               #:left-pad-string "0")
-                                       (curry format "~b")))))
-        (parameterize ([BITTAGE new-bittage])
-          (actualItems)))]
-      [("help" "h" "?" "-h" "--help")
-       ; TODO make this work
-       (displayln (string-append "Try running the `run` or `memorydump`"
-                                 " subcommands.\n"
-                                 "Each of them also support the"
-                                 " `-h` flag for help\n"
-                                 "Lastly, the aliases are as folows.\n"
-                                 " help\n"
-                                 "\th\n"
-                                 "\t?\n"
-                                 "\t-h\n"
-                                 "\t--help\n"
-                                 " memorydump\n"
-                                 "\tdump\n"
-                                 "\tmd\n"
-                                 "\tmd\n"
-                                 "\td\n"
-                                 " run\n"
-                                 "\tr\n"))]
-      [else (raise-user-error (format "`~a` is an invalid command. try `help`"
-                                      command))])))
+                        command))
+  (case command
+    [("run" "r") (ocm-asm-main-run commandName args actualItems)]
+    [("memorydump" "dump" "md" "d")
+     (define big-endian #f)
+     (define decimal #f)
+     (define new-bittage (BITTAGE))
+     (command-line
+       #:program commandName
+       #:argv args
+       #:once-each
+       [("-d" "--decimal")
+        "Print decimal numbers instead of binary numbers. Ignores flags relating to binary"
+        (set! decimal #t)]
+       [("-b" "--big-endian")
+        "Display in big endian form instead of little endian"
+        (set! big-endian #t)]
+       [("-B" "--bittage") => (lambda (flag arg)
+                                (set! new-bittage (string->number arg)))
+                           '("Set the bittage of the memory dumper"
+                             "the bittage")])
+     ; Read this from bottom to top
+     ((compose1 displayln
+                (curryr string-join "\n")
+                (curry map
+                       (if decimal
+                         ~a
+                         (compose1 (if big-endian
+                                     (compose1 list->string
+                                               reverse
+                                               string->list)
+                                     identity)
+                                   (curryr ~a
+                                           #:min-width new-bittage
+                                           #:align 'right
+                                           #:left-pad-string "0")
+                                   (curry format "~b")))))
+      (parameterize ([BITTAGE new-bittage])
+        (actualItems)))]
+    [("help" "h" "?" "-h" "--help")
+     ; TODO make this work
+     (displayln (string-append "Try running the `run` or `memorydump`"
+                               " subcommands.\n"
+                               "Each of them also support the"
+                               " `-h` flag for help\n"
+                               "Lastly, the aliases are as folows.\n"
+                               " help\n"
+                               "\th\n"
+                               "\t?\n"
+                               "\t-h\n"
+                               "\t--help\n"
+                               " memorydump\n"
+                               "\tdump\n"
+                               "\tmd\n"
+                               "\td\n"
+                               " run\n"
+                               "\tr\n"))]
+    [else (raise-user-error (format "`~a` is an invalid command. try `help`"
+                                    command))]))
+(define-simple-macro (ocm-asm items:expr ...)
+                     (ocm-asm-main (list items ...)))
 (provide ocm-asm)
 ; TODO unit test this all
