@@ -83,22 +83,7 @@
        (run-ocm-asm #:numbers (list->vector (actualItems)))
        ; Prevents printing when we don't need to
        (void)))
-
-(define (ocm-asm-main items)
-  (define pre-args (let ([a (current-command-line-arguments)])
-                     (if ((vector-length a) . = . 0)
-                       '#("help")
-                       a)))
-  (define command (vector-ref pre-args 0))
-  (define args (vector-drop pre-args 1))
-  (define actualItems (thunk (clean-rows items)))
-  (define commandName (string-append
-                        (path->string (find-system-path 'run-file))
-                        " "
-                        command))
-  (case command
-    [("run" "r") (ocm-asm-main-run commandName args actualItems)]
-    [("memorydump" "dump" "md" "d")
+(define (ocm-asm-main-memorydump commandName args actualItems)
      (define big-endian #f)
      (define decimal #f)
      (define new-bittage (BITTAGE))
@@ -133,7 +118,23 @@
                                            #:left-pad-string "0")
                                    (curry format "~b")))))
       (parameterize ([BITTAGE new-bittage])
-        (actualItems)))]
+        (actualItems))))
+(define (ocm-asm-main items)
+  (define pre-args (let ([a (current-command-line-arguments)])
+                     (if ((vector-length a) . = . 0)
+                       '#("help")
+                       a)))
+  (define command (vector-ref pre-args 0))
+  (define args (vector-drop pre-args 1))
+  (define actualItems (thunk (clean-rows items)))
+  (define commandName (string-append
+                        (path->string (find-system-path 'run-file))
+                        " "
+                        command))
+  (case command
+    [("run" "r") (ocm-asm-main-run commandName args actualItems)]
+    [("memorydump" "dump" "md" "d")
+     (ocm-asm-main-memorydump commandName args actualItems)]
     [("help" "h" "?" "-h" "--help")
      ; TODO make this work
      (displayln (string-append "Try running the `run` or `memorydump`"
