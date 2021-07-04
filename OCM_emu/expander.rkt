@@ -2,24 +2,17 @@
 (require syntax/parse/define "encodings.rkt" "runtime.rkt")
 (provide #%datum)
 (define-simple-macro (ocm-asm-row label-list:expr ... data:expr nl)
-                     (begin
-                     (displayln '(ocm-asm-row label-list ... data nl))
                      (cons (lambda (line-no)
-                             (println "line-no called")
                              (map (curryr apply (list line-no))
                                   (list label-list ...)))
-                           data)))
+                           data))
 (provide ocm-asm-row)
-(define-simple-macro (ocm-asm-dta pound dta:nat nl)
-                     (begin
-                     (displayln '(ocm-asm-dta pound dta nl))
-                     (list dta)))
+(define-simple-macro (ocm-asm-dta pound dta:nat)
+                     (thunk (list dta)))
 (provide ocm-asm-dta)
 (define-simple-macro (ocm-asm-inst colon inst:id)
                      ; inst is a reference to a number
-                     (begin
-                     (displayln '(ocm-asm-inst colon inst))
-                     (thunk (list (symbol->num (quote inst))))))
+                     (thunk (list (symbol->num (quote inst)))))
 (provide ocm-asm-inst)
 (define-simple-macro (ocm-asm-mb parse-tree:expr)
                      (#%module-begin parse-tree))
@@ -28,42 +21,40 @@
   ((BITTAGE) . < . 7)) 
 (define-syntax-parser
   ocm-asm-str
-  [(_ data:string nl)
-   #:fail-unless (1 . = . (string-length (syntax-e #'data)))
-   "string length is not one in implicit char"
-   #`(if (should-use-ita?)
-         (begin (displayln (format "encodeita2 ~a" data))
-                (list (encode-ITA_2 data)))
-         (list (char->integer (string-ref data 0))))]
-  [(_ data:string nl)
-   #`(if (should-use-ita?)
-         (encode-ITA_2 data)
-         (list #,@(for/list ([char (string->list (syntax-e #'data))])
-                            #`(char->integer #,char))))])
+  [(_ data:string)
+   #`(ann (thunk
+            (if (should-use-ita?)
+                (encode-ITA_2 data)
+                (list #,@(for/list ([char (string->list (syntax-e #'data))])
+                                   #`(char->integer #,char)))))
+          OCM-Val)])
 (provide ocm-asm-str)
-(define (clean-rows items)
-  (let* {[theItems (apply append (for/list ([item items]
-                                                     #:when (list? item))
-                                                    item))]
-             [len (length theItems)]
-             [iteration-count -1]
-             [max-int ((MAX_INT))]}
-             (if (len . > . ((RAM_SIZE)))
-               (raise-user-error
-                 (format "The provided program is too long max ~a was"
-                         max-int)
-                 len)
-               (for/list ([item theItems])
-                         (set! iteration-count (iteration-count . + . 1))
-                         (when (item . > . max-int)
-                           (raise-user-error
-                             (format
-                               "The item at ~a in memory is too large"
-                               iteration-count)
-                             item))
-                         item))))
-(define-simple-macro (println* args:expr ...)
-                     (println (list args ...)))
+(define/contract (clean-rows rows) ((listof (or/c #f pair?))
+                                    . -> . list?)
+  (define theRows (filter pair? rows))
+  (define iteration-count -1)
+  ; Add all labels to the hash
+  (for {[a-row theRows]}
+       (set! iteration-count (iteration-count . + . 1))
+       ((car a-row) iteration-count))
+  (define theItems
+    (apply append (map (compose1 (curryr apply '()) cdr) theRows)))
+  (define len (length theItems))
+  (define max-int ((MAX_INT)))
+  (set! iteration-count -1)
+  (if (len . > . ((RAM_SIZE)))
+    (raise-user-error
+      (format "The provided program is too long max ~a was" max-int)
+      len)
+    (for/list {[item theItems]}
+              (set! iteration-count (iteration-count . + . 1))
+              ; Second pass - resolve the labels
+              (when (item . > . max-int)
+                (raise-user-error (format
+                                    "The item at ~a in memory is too large"
+                                    iteration-count)
+                                  item))
+              item)))
 (define (ocm-asm-main-run commandName args actualItems)
      (define new-bittage (BITTAGE))
      (define new-dbg-port (debugger-port))
