@@ -16,7 +16,11 @@
 (provide ocm-asm-inst)
 (define-simple-macro (ocm-asm-mb parse-tree:expr)
                      (#%module-begin parse-tree))
-(provide (rename-out [ocm-asm-mb #%module-begin]))
+(define labels (make-hash))
+(define-simple-macro (ocm-asm-ref percent name:id)
+                     ; Can throw error. User needs to see it.
+                     (thunk (list (hash-ref labels (quote name)))))
+(provide ocm-asm-ref (rename-out [ocm-asm-mb #%module-begin]))
 (define (should-use-ita?)
   ((BITTAGE) . < . 7)) 
 (define-syntax-parser
