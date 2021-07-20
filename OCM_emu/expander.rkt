@@ -20,18 +20,21 @@
 (define-simple-macro (ocm-asm-ref percent name:id)
                      ; Can throw error. User needs to see it.
                      (thunk (list (hash-ref labels (quote name)))))
-(provide ocm-asm-ref (rename-out [ocm-asm-mb #%module-begin]))
+(provide ocm-asm-ref)
+(define-simple-macro (ocm-asm-label atsign name:id nl ...)
+                     (lambda (line-no)
+                             (hash-set! labels (quote name) line-no)))
+(provide ocm-asm-label)
+(provide (rename-out [ocm-asm-mb #%module-begin]))
 (define (should-use-ita?)
   ((BITTAGE) . < . 7)) 
 (define-syntax-parser
   ocm-asm-str
   [(_ data:string)
-   #`(ann (thunk
-            (if (should-use-ita?)
+   #`(thunk (if (should-use-ita?)
                 (encode-ITA_2 data)
                 (list #,@(for/list ([char (string->list (syntax-e #'data))])
-                                   #`(char->integer #,char)))))
-          OCM-Val)])
+                                   #`(char->integer #,char)))))])
 (provide ocm-asm-str)
 (define/contract (clean-rows rows) ((listof (or/c #f pair?))
                                     . -> . list?)
