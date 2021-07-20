@@ -1,14 +1,12 @@
+#!/usr/bin/env racket
 #lang OCM_emu
 (This is a assembly file in a custom syntax I made for my uses.
 The syntax is as follows:
 
 - A parenthasis starts a comment.
 - A close paren closes a comment.
-- Sortof like Fortran, all lines that aren't inside a comment require a number. 
-These numbers must be incrementing by one, or a range, if the data to the right 
-allows it. ranges are in number dash number format
-- Immidiately after the number or range is a character that indicates the nature
-of the data that will be stored in said locations
+- All lines that aren't inside a comment require a character that indicates the
+nature of the data that will be stored in said locations
   - If the character is a colon : then the rest of the line is the name of the
   instruction that is stored here
   - If the character is a pound # then the rest of the line is a decimal number
@@ -16,45 +14,90 @@ of the data that will be stored in said locations
   - If the character is a doublequote " then the range between this and the next
   doublequote is character data that will be included in the specified location
   or range. Specifying said location or range is mandatory.
+  - If the character is an at @ then the rest of the line is the name of the
+  label that will represent the following line's location. Multiple labels
+  may refer to the same location, and are compile-time evaluated only
+  - If the character is a percent % then the rest of the line is the name of the
+  label that is being referenced, and the line will evaluate to the location of
+  where that symbol was defined - note that symbol evaluation is only done at
+  compile time, not runtime
 
-Made for OCMv2.0
+Made for OCMv5
 )
-0:NEX
-1#14(after hello world, using 18 as SW)
-2:SW
-3:IFG
-4-17"Hello, World!"
-18#0(C-style trailing null and SW)
-19:DIR (Change to backwards direction)
-20:NEX
-21#18(counter, start of hello world)
-22:SW
-23:GET
-24:SW
-25:NEX
-26#0
-27:DIR (Change to forwards direction)
-28:NEX
-29#49(end of program)
-30:SW
-31:IFG
-32:IO
-33:SW
-34:NEX
-35#14(a reference to the counter above)
-36:SW
-37:GET
-38:MATH
-39:NEX
-40#21(another reference to above counter)
-41:SW
-42:SET
-43:SW
-44:NEX
-45#25(before null check)
-46:DIR (Change to backwards direction)
-47:SW
-48:NEX
-49#0
-50:IFG
+  :NEXT
+  %after-string
+  :SWAP
+  :NEXT
+  #0
+  :SUBTRACT (set the overflow bit)
+  :SWAP
+  :IFGOTO
+@begin-string
+"HELLO, WORLD!"
+@after-string
+(we will loop starting at begin-string ending before after-string)
 
+(to make the drifting memory pointer, let's first grab it before we put it where
+    it goes)
+:NEXT
+%begin-string
+:SWAP
+:GET (the location of begin-string is now in [A])
+:SWAP
+:NEXT
+%counter
+:SET (@counter now holds the location of @begin-string)
+
+@begin-loop
+  :NEXT
+  @counter
+  #0 (#0 is a dummy value - this starts with location of @begin-string)
+  (is @counter, in [A], higher than location of @after-string?)
+    :SWAP
+    :NEXT
+    %after-string
+    :SWAP
+    :SUBTRACT
+  (if so then we break)
+    :NEXT
+    %halt
+    :IFGOTO
+  (else we get the character @counter is pointing to)
+    :NEXT
+    %counter ([A] is now location of @counter)
+    :SWAP ([B] is now location of @counter)
+    :GET ([A] is now location of current char, [B] is location of @counter)
+    :SWAP
+    :GET ([A] is now the char, [B] is the char's location)
+
+    (print that char)
+      :SENDOUT
+    (increase @counter by one)
+      (increase by one)
+        :NEXT
+        #1
+        :ADD
+        (if an unlikely overflow happens)
+          :SWAP(remember - until the ifgoto this code still runs)
+          :NEXT
+          %increase-counter-failed
+          :IFGOTO
+      (update @counter)
+        :NEXT
+        %counter
+        :SWAP
+        :SET
+    (then return to @begin-loop)
+      :NEXT
+      %begin-loop
+      :SWAP
+      :NEXT
+      #0
+      :SUBTRACT
+      :SWAP
+      :IFGOTO
+:HALT (something badly wrong)
+@increase-counter-failed
+  :HALT
+@halt
+  :HALT (normal halt condition)
