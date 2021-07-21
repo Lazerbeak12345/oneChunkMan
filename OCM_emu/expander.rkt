@@ -1,5 +1,6 @@
 #lang racket
 (require syntax/parse/define "encodings.rkt" "runtime.rkt")
+;(module+ test (require typed/rackunit))
 (provide #%datum)
 (define-simple-macro (ocm-asm-row label-list:expr ... data:expr nl)
                      (cons (lambda (line-no)
@@ -62,6 +63,19 @@
                                     iteration-count)
                                   item))
               item)))
+#|(module+ test
+         (test-equal? "Test pointer after string"
+                      (clean-rows (ocm-asm-row (ocm-asm-inst #f NEXT)
+                                            #f)
+                               (ocm-asm-row (ocm-asm-ref #f after-string)
+                                            #f)
+                               (osm-asm-row (osm-asm-label #f begin-string)
+                                            (osm-asm-str "ASDF")
+                                            #f)
+                               (osm-asm-row (osm-asm-label #f after-string)
+                                            (osm-asm-inst #f SWAP)
+                                            #f))
+                   '()))|#
 (define (ocm-asm-main-run commandName args actualItems)
      (define new-bittage (BITTAGE))
      (define new-dbg-port (debugger-port))
