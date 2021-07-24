@@ -1,4 +1,4 @@
-#lang racket
+#lang typed/racket
 (require syntax/parse/define "encodings.rkt" "runtime.rkt")
 ;(module+ test (require typed/rackunit))
 (provide #%datum)
@@ -37,16 +37,34 @@
                 (list #,@(for/list ([char (string->list (syntax-e #'data))])
                                    #`(char->integer #,char)))))])
 (provide ocm-asm-str)
-(define/contract (clean-rows rows) ((listof (or/c #f pair?))
-                                    . -> . list?)
-  (define theRows (filter pair? rows))
+(: clean-rows :
+   (Listof (U #f (Pairof (Exact-Nonnegative-Integer -> (Listof Void))
+                         (-> (Listof Exact-Nonnegative-Integer)))))
+   -> (Listof Exact-Nonnegative-Integer))
+(define (clean-rows rows) 
+  (define theRows :
+    (Listof (Pairof (Exact-Nonnegative-Integer -> (Listof Void))
+                    (-> (Listof Exact-Nonnegative-Integer))))
+    ;(filter pair? rows)
+    (for/list ([row rows]
+               #:when (pair? row))
+              row))
   (define iteration-count -1)
   ; Add all labels to the hash
   (for {[a-row theRows]}
        (set! iteration-count (iteration-count . + . 1))
-       ((car a-row) iteration-count))
-  (define theItems
-    (apply append (map (compose1 (curryr apply '()) cdr) theRows)))
+       ((car a-row) (cast iteration-count Exact-Nonnegative-Integer)))
+  (define theItems : (Listof Exact-Nonnegative-Integer)
+    ;(apply append (map (compose1 (curryr apply '()) cdr) theRows))
+    (apply append
+           (map #|(compose1
+                  (curryr apply '())
+                  cdr)|#
+                (lambda
+                  ([row : (Pairof Any
+                                  (-> (Listof Exact-Nonnegative-Integer)))])
+                  ((cdr row)))
+                theRows)))
   (define len (length theItems))
   (define max-int ((MAX_INT)))
   (set! iteration-count -1)
@@ -54,7 +72,7 @@
     (raise-user-error
       (format "The provided program is too long max ~a was" max-int)
       len)
-    (for/list {[item theItems]}
+    (for/list {[item : Exact-Nonnegative-Integer theItems]}
               (set! iteration-count (iteration-count . + . 1))
               ; Second pass - resolve the labels
               (when (item . > . max-int)
@@ -76,29 +94,43 @@
                                             (osm-asm-inst #f SWAP)
                                             #f))
                    '()))|#
+(: ocm-asm-main-run :
+   String
+   (Mutable-Vectorof String)
+   (-> (Listof Exact-Nonnegative-Integer))
+   -> Void)
 (define (ocm-asm-main-run commandName args actualItems)
-     (define new-bittage (BITTAGE))
+     (define new-bittage : Exact-Nonnegative-Integer (BITTAGE))
      (define new-dbg-port (debugger-port))
      (command-line
        #:program commandName
        #:argv args
        #:once-each
-       [("-B" "--bittage") => (lambda (flag arg)
-                                (set! new-bittage (string->number arg)))
-                           '("Set the bittage of the emulator"
-                             "the bittage")]
+       [("-B" "--bittage")
+        => (lambda (flag arg)
+             (set! new-bittage
+               (cast (string->number (cast arg String))
+                     Exact-Nonnegative-Integer)))
+        '("Set the bittage of the emulator" "the bittage")]
        [("-v" "--verbose")
         "Send debug output to stderr"
         (set! new-dbg-port (current-error-port))])
      (parameterize ([BITTAGE new-bittage]
                     [debugger-port new-dbg-port])
-       (run-ocm-asm #:numbers (list->vector (actualItems)))
-       ; Prevents printing when we don't need to
-       (void)))
+       (run-ocm-asm #:numbers
+                    (cast (list->vector (actualItems))
+                          (Mutable-Vectorof Exact-Nonnegative-Integer))))
+     ; Prevents printing when we don't need to
+     (void))
+(: ocm-asm-main-memorydump :
+   String
+   (Mutable-Vectorof String)
+   (-> (Listof Exact-Nonnegative-Integer))
+   -> Void)
 (define (ocm-asm-main-memorydump commandName args actualItems)
-     (define big-endian #f)
-     (define decimal #f)
-     (define new-bittage (BITTAGE))
+     (define big-endian : Boolean #f)
+     (define decimal : Boolean #f)
+     (define new-bittage : Exact-Nonnegative-Integer (BITTAGE))
      (command-line
        #:program commandName
        #:argv args
@@ -109,28 +141,36 @@
        [("-b" "--big-endian")
         "Display in big endian form instead of little endian"
         (set! big-endian #t)]
-       [("-B" "--bittage") => (lambda (flag arg)
-                                (set! new-bittage (string->number arg)))
-                           '("Set the bittage of the memory dumper"
-                             "the bittage")])
-     ; Read this from bottom to top
-     ((compose1 displayln
-                (curryr string-join "\n")
-                (curry map
-                       (if decimal
-                         ~a
-                         (compose1 (if big-endian
-                                     (compose1 list->string
-                                               reverse
-                                               string->list)
-                                     identity)
-                                   (curryr ~a
-                                           #:min-width new-bittage
-                                           #:align 'right
-                                           #:left-pad-string "0")
-                                   (curry format "~b")))))
-      (parameterize ([BITTAGE new-bittage])
-        (actualItems))))
+       [("-B" "--bittage")
+        => (lambda (flag arg)
+             (set! new-bittage
+               (cast (string->number (cast arg String))
+                     Exact-Nonnegative-Integer)))
+        '("Set the bittage of the memory dumper"
+          "the bittage")])
+     (define numbers : (Listof Exact-Nonnegative-Integer)
+       (parameterize ([BITTAGE new-bittage])
+         (actualItems)))
+     (displayln
+       (string-join
+         (if decimal
+           (map ~a numbers)
+           (for/list : (Listof String)
+                     ([number numbers])
+                     (define binary
+                       (~a (format "~b" number)
+                           #:min-width new-bittage
+                           #:align 'right
+                           #:left-pad-string "0"))
+                     (if big-endian
+                       (list->string
+                         (reverse (string->list binary)))
+                       binary)))
+         "\n")))
+(: ocm-asm-main :
+   (Listof (U #f (Pairof (Exact-Nonnegative-Integer -> (Listof Void))
+                         (-> (Listof Exact-Nonnegative-Integer)))))
+   -> Void)
 (define (ocm-asm-main items)
   (define pre-args (let ([a (current-command-line-arguments)])
                      (if ((vector-length a) . = . 0)
