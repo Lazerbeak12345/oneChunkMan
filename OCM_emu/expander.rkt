@@ -1,12 +1,16 @@
 #lang typed/racket
 (require syntax/parse/define "encodings.rkt" "runtime.rkt")
-;(module+ test (require typed/rackunit))
+(module+ test (require typed/rackunit))
 (provide #%datum)
-(define-simple-macro (ocm-asm-row label-list:expr ... data:expr nl)
-                     (cons (lambda (line-no)
-                             (map (curryr apply (list line-no))
-                                  (list label-list ...)))
-                           data))
+(define-simple-macro
+  (ocm-asm-row label-list:expr ... data:expr nl)
+  (cons (lambda ([line-no : Exact-Nonnegative-Integer])
+          (for/list : (Listof Exact-Nonnegative-Integer)
+                    ([label (cast (list label-list ...)
+                                  (Listof (Exact-Nonnegative-Integer
+                                            -> Exact-Nonnegative-Integer)))])
+                    (label line-no)))
+        data))
 (provide ocm-asm-row)
 (define-simple-macro (ocm-asm-dta pound dta:nat)
                      (thunk (list dta)))
@@ -17,14 +21,14 @@
 (provide ocm-asm-inst)
 (define-simple-macro (ocm-asm-mb parse-tree:expr)
                      (#%module-begin parse-tree))
-(define labels (make-hash))
+(define labels (make-parameter (make-hash)))
 (define-simple-macro (ocm-asm-ref percent name:id)
                      ; Can throw error. User needs to see it.
-                     (thunk (list (hash-ref labels (quote name)))))
+                     (thunk (hash-ref (labels) (quote name))))
 (provide ocm-asm-ref)
 (define-simple-macro (ocm-asm-label atsign name:id nl ...)
                      (lambda (line-no)
-                             (hash-set! labels (quote name) line-no)))
+                             (hash-set! (labels) (quote name) line-no)))
 (provide ocm-asm-label)
 (provide (rename-out [ocm-asm-mb #%module-begin]))
 (define (should-use-ita?)
@@ -81,19 +85,31 @@
                                     iteration-count)
                                   item))
               item)))
-#|(module+ test
-         (test-equal? "Test pointer after string"
-                      (clean-rows (ocm-asm-row (ocm-asm-inst #f NEXT)
-                                            #f)
-                               (ocm-asm-row (ocm-asm-ref #f after-string)
-                                            #f)
-                               (osm-asm-row (osm-asm-label #f begin-string)
-                                            (osm-asm-str "ASDF")
-                                            #f)
-                               (osm-asm-row (osm-asm-label #f after-string)
-                                            (osm-asm-inst #f SWAP)
-                                            #f))
-                   '()))|#
+(module+ test
+         (test-equal? "Test ocm-asm-inst"
+                      ((ocm-asm-inst #f NEXT))
+                      '(3))
+         (test-exn "Test ocm-asm-ref fail"
+                   exn:fail:contract?
+                   (thunk (parameterize ([labels (make-hash)])
+                            ((ocm-asm-ref #f after-string)))))
+         (test-equal? "Test ocm-asm-ref pass"
+                      (parameterize ([labels (make-hash '((after-string 9)))])
+                        ((ocm-asm-ref #f after-string)))
+                      '(9))
+         #|(test-equal?
+           "Test pointer after string"
+           (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT)
+                                          #f)
+                             (ocm-asm-row (ocm-asm-ref #f after-string)
+                                          #f)
+                             (ocm-asm-row (ocm-asm-label #f begin-string)
+                                          (ocm-asm-str "ASDF")
+                                          #f)
+                             (ocm-asm-row (ocm-asm-label #f after-string)
+                                          (ocm-asm-inst #f SWAP)
+                                          #f)))
+           '())|#)
 (: ocm-asm-main-run :
    String
    (Mutable-Vectorof String)
