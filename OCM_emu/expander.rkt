@@ -24,7 +24,7 @@
 (define labels (make-parameter (make-hash)))
 (define-simple-macro (ocm-asm-ref percent name:id)
                      ; Can throw error. User needs to see it.
-                     (thunk (hash-ref (labels) (quote name))))
+                     (thunk (list (hash-ref (labels) (quote name)))))
 (provide ocm-asm-ref)
 (define-simple-macro (ocm-asm-label atsign name:id nl ...)
                      (lambda (line-no)
@@ -94,9 +94,18 @@
                    (thunk (parameterize ([labels (make-hash)])
                             ((ocm-asm-ref #f after-string)))))
          (test-equal? "Test ocm-asm-ref pass"
-                      (parameterize ([labels (make-hash '((after-string 9)))])
+                      (parameterize
+                        ([labels (make-hash '((after-string . 9)))])
                         ((ocm-asm-ref #f after-string)))
                       '(9))
+         (test-case "Test ocm-asm-label"
+                    (parameterize ([labels (make-hash)])
+                      (check-equal? ((ocm-asm-label #f begin-string) 3)
+                                    (void)
+                                    "return value")
+                      (check-equal? (labels)
+                                    (make-hash '((begin-string . 3)))
+                                    "modified hash")))
          #|(test-equal?
            "Test pointer after string"
            (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT)
