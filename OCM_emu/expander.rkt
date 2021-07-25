@@ -106,6 +106,14 @@
                       (check-equal? (labels)
                                     (make-hash '((begin-string . 3)))
                                     "modified hash")))
+         (test-equal? "Test ocm-asm-str bittage 6"
+                      (parameterize ([BITTAGE 6])
+                        ((ocm-asm-str "ASDF")))
+                      '(31 3 5 9 13))
+         (test-equal? "Test ocm-asm-str bittage 8"
+                      (parameterize ([BITTAGE 8])
+                        ((ocm-asm-str "ASDF")))
+                      '(65 83 68 70))
          #|(test-equal?
            "Test pointer after string"
            (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT)
