@@ -114,6 +114,14 @@
                       (parameterize ([BITTAGE 8])
                         ((ocm-asm-str "ASDF")))
                       '(65 83 68 70))
+         (test-equal? "Test ocm-asm-row"
+                      (cdr (ocm-asm-row (lambda (number)
+                                          (void))
+                                        (lambda (number)
+                                          (void))
+                                        '(31 3 5 9 13)
+                                        #f))
+                      '(31 3 5 9 13))
          #|(test-equal?
            "Test pointer after string"
            (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT)
