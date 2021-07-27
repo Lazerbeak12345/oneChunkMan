@@ -5,12 +5,10 @@
 (define-simple-macro
   (ocm-asm-row label-list:expr ... data:expr nl)
   (cons (lambda ([line-no : Exact-Nonnegative-Integer])
-          (for/list : (Listof Exact-Nonnegative-Integer)
-                    ([label (cast (list label-list ...)
-                                  (Listof (Exact-Nonnegative-Integer
-                                            -> Exact-Nonnegative-Integer)))])
-                    (label line-no)))
-        data))
+          (for ([label (cast (list label-list ...)
+                             (Listof (Exact-Nonnegative-Integer -> Void)))])
+               (label line-no)))
+        (cast data (-> (Listof Exact-Nonnegative-Integer)))))
 (provide ocm-asm-row)
 (define-simple-macro (ocm-asm-dta pound dta:nat)
                      (thunk (list dta)))
@@ -42,20 +40,13 @@
                                    #`(char->integer #,char)))))])
 (provide ocm-asm-str)
 (: clean-rows :
-   (Listof (U #f (Pairof (Exact-Nonnegative-Integer -> (Listof Void))
-                         (-> (Listof Exact-Nonnegative-Integer)))))
+   (Listof (Pairof (Exact-Nonnegative-Integer -> Void)
+                   (-> (Listof Exact-Nonnegative-Integer))))
    -> (Listof Exact-Nonnegative-Integer))
 (define (clean-rows rows) 
-  (define theRows :
-    (Listof (Pairof (Exact-Nonnegative-Integer -> (Listof Void))
-                    (-> (Listof Exact-Nonnegative-Integer))))
-    ;(filter pair? rows)
-    (for/list ([row rows]
-               #:when (pair? row))
-              row))
   (define iteration-count -1)
   ; Add all labels to the hash
-  (for {[a-row theRows]}
+  (for {[a-row rows]}
        (set! iteration-count (iteration-count . + . 1))
        ((car a-row) (cast iteration-count Exact-Nonnegative-Integer)))
   (define theItems : (Listof Exact-Nonnegative-Integer)
@@ -68,7 +59,7 @@
                   ([row : (Pairof Any
                                   (-> (Listof Exact-Nonnegative-Integer)))])
                   ((cdr row)))
-                theRows)))
+                rows)))
   (define len (length theItems))
   (define max-int ((MAX_INT)))
   (set! iteration-count -1)
@@ -115,26 +106,29 @@
                         ((ocm-asm-str "ASDF")))
                       '(65 83 68 70))
          (test-equal? "Test ocm-asm-row"
-                      (cdr (ocm-asm-row (lambda (number)
-                                          (void))
-                                        (lambda (number)
-                                          (void))
-                                        '(31 3 5 9 13)
-                                        #f))
+                      ((cdr (ocm-asm-row (lambda (number)
+                                           (void))
+                                         (lambda (number)
+                                           (void))
+                                         (thunk '(31 3 5 9 13))
+                                         #f)))
                       '(31 3 5 9 13))
-         #|(test-equal?
-           "Test pointer after string"
-           (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT)
-                                          #f)
-                             (ocm-asm-row (ocm-asm-ref #f after-string)
-                                          #f)
-                             (ocm-asm-row (ocm-asm-label #f begin-string)
-                                          (ocm-asm-str "ASDF")
-                                          #f)
-                             (ocm-asm-row (ocm-asm-label #f after-string)
-                                          (ocm-asm-inst #f SWAP)
-                                          #f)))
-           '())|#)
+         (test-case
+           "Test clean-rows"
+           (parameterize ([labels (make-hash)]
+                          [BITTAGE 6])
+             (check-equal?
+               (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT) #f)
+                                 (ocm-asm-row (ocm-asm-ref #f after-string) #f)
+                                 (ocm-asm-row (ocm-asm-label #f begin-string)
+                                              (ocm-asm-str "ASDF")
+                                              #f)
+                                 (ocm-asm-row (ocm-asm-label #f after-string)
+                                              (ocm-asm-inst #f SWAP)
+                                              #f)))
+               '(3 7 31 3 5 9 13 2)
+               "return")
+             (check-equal? labels '() "labels"))))
 (: ocm-asm-main-run :
    String
    (Mutable-Vectorof String)
@@ -209,8 +203,8 @@
                        binary)))
          "\n")))
 (: ocm-asm-main :
-   (Listof (U #f (Pairof (Exact-Nonnegative-Integer -> (Listof Void))
-                         (-> (Listof Exact-Nonnegative-Integer)))))
+   (Listof (Pairof (Exact-Nonnegative-Integer -> Void)
+                   (-> (Listof Exact-Nonnegative-Integer))))
    -> Void)
 (define (ocm-asm-main items)
   (define pre-args (let ([a (current-command-line-arguments)])
