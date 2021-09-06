@@ -4,6 +4,7 @@
 (provide symbol->num num->instruction run-ocm-asm)
 (define-type Instruction-Symbol (U 'NOP 'HALT 'SWAP 'NEXT 'GET 'SET 'IFGOTO
                                    'READIN 'SENDOUT 'ADD 'SUBTRACT))
+(provide Instruction-Symbol) ; Used by expander
 (define-predicate instruction-symbol? Instruction-Symbol)
 (: symbol->num (-> Instruction-Symbol Exact-Nonnegative-Integer))
 (define (symbol->num sym)

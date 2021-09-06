@@ -2,93 +2,161 @@
 (require syntax/parse/define "encodings.rkt" "runtime.rkt")
 (module+ test (require typed/rackunit))
 (provide #%datum)
-(define-simple-macro
-  (ocm-asm-row label-list:expr ... data:expr nl)
-  (cons (lambda ([line-no : Exact-Nonnegative-Integer])
-          (for ([label (cast (list label-list ...)
-                             (Listof (Exact-Nonnegative-Integer -> Void)))])
-               (label line-no)))
-        (cast data (-> (Listof Exact-Nonnegative-Integer)))))
+(define-simple-macro (ocm-asm-row label-list:expr ... data:expr nl)
+                     (ocm-asm-row-helper (list label-list ...)
+                                         data))
+(define-type Unclean-Row (-> (U (Exact-Nonnegative-Integer
+                                  -> (-> Exact-Nonnegative-Integer))
+                                Void)))
+(: ocm-asm-row-helper
+   : (Listof (Exact-Nonnegative-Integer -> Void))
+   (-> (Listof (-> Exact-Nonnegative-Integer)))
+   -> Unclean-Row)
+(define (ocm-asm-row-helper label-list data)
+  (define remaining-data : (U Void (Listof (-> Exact-Nonnegative-Integer)))
+    (void))
+  ; Call to get next lambda, or void
+  (thunk (if (null? remaining-data)
+           (void)
+           (let ([first (void? remaining-data)])
+             (when first (set! remaining-data (data)))
+             ; We have to cast it after setting it for the first time
+             (let* ([rd (cast remaining-data
+                              (Listof (-> Exact-Nonnegative-Integer)))]
+                    [old-car (car rd)])
+               (set! remaining-data (cdr rd))
+               (set! rd '()) ; Free up memory
+               ; Call to get value
+               (lambda (location)
+                 (when first
+                   (for ([label label-list])
+                        (label (cast location Exact-Nonnegative-Integer))))
+                 old-car))))))
 (provide ocm-asm-row)
 (define-simple-macro (ocm-asm-dta pound dta:nat)
-                     (thunk (list dta)))
+                     (thunk (list (thunk dta))))
 (provide ocm-asm-dta)
 (define-simple-macro (ocm-asm-inst colon inst:id)
                      ; inst is a reference to a number
-                     (thunk (list (symbol->num (quote inst)))))
+                     (osm-asm-inst-func (quote inst)))
+(: osm-asm-inst-func : Symbol -> (-> (Listof (-> Exact-Nonnegative-Integer))))
+(define ((osm-asm-inst-func inst))
+  (list (thunk (symbol->num (cast inst Instruction-Symbol)))))
 (provide ocm-asm-inst)
 (define-simple-macro (ocm-asm-mb parse-tree:expr)
                      (#%module-begin parse-tree))
-(define labels (make-parameter (make-hash)))
+(define labels
+  : (Parameterof (Mutable-HashTable Symbol Exact-Nonnegative-Integer))
+  (make-parameter (cast (make-hash)
+                        (Mutable-HashTable Symbol Exact-Nonnegative-Integer))))
 (define-simple-macro (ocm-asm-ref percent name:id)
+                     (ocm-asm-ref-func (quote name)))
                      ; Can throw error. User needs to see it.
-                     (thunk (list (hash-ref (labels) (quote name)))))
+(: ocm-asm-ref-func : Symbol -> (-> (Listof (-> Exact-Nonnegative-Integer))))
+(define ((ocm-asm-ref-func name))
+  (list (thunk (hash-ref (labels) name))))
 (provide ocm-asm-ref)
 (define-simple-macro (ocm-asm-label atsign name:id nl ...)
-                     (lambda (line-no)
-                             (hash-set! (labels) (quote name) line-no)))
+                     (ocm-asm-label-func (quote name)))
+(: ocm-asm-label-func : Symbol -> (Exact-Nonnegative-Integer -> Void))
+(define ((ocm-asm-label-func name) line-no)
+  (hash-set! (labels) name line-no))
 (provide ocm-asm-label)
 (provide (rename-out [ocm-asm-mb #%module-begin]))
 (define (should-use-ita?)
   ((BITTAGE) . < . 7)) 
-(define-syntax-parser
-  ocm-asm-str
-  [(_ data:string)
-   #`(thunk (if (should-use-ita?)
-                (encode-ITA_2 data)
-                (list #,@(for/list ([char (string->list (syntax-e #'data))])
-                                   #`(char->integer #,char)))))])
+(: ocm-asm-str : String -> (-> (Listof (-> Exact-Nonnegative-Integer))))
+(define ((ocm-asm-str data))
+    (for/list ([num (if (should-use-ita?)
+                      (encode-ITA_2 data)
+                      (map char->integer (string->list data)))])
+              (thunk (cast num Exact-Nonnegative-Integer))))
 (provide ocm-asm-str)
-(: clean-rows :
-   (Listof (Pairof (Exact-Nonnegative-Integer -> Void)
-                   (-> (Listof Exact-Nonnegative-Integer))))
-   -> (Listof Exact-Nonnegative-Integer))
+(define-type Unclean-Rows (Listof Unclean-Row))
+(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
 (define (clean-rows rows) 
-  (define iteration-count -1)
-  ; Add all labels to the hash
-  (for {[a-row rows]}
-       (set! iteration-count (iteration-count . + . 1))
-       ((car a-row) (cast iteration-count Exact-Nonnegative-Integer)))
-  (define theItems : (Listof Exact-Nonnegative-Integer)
-    ;(apply append (map (compose1 (curryr apply '()) cdr) theRows))
+  ;Iterate over `rows` and append the results
+  (define theItems
     (apply append
-           (map #|(compose1
-                  (curryr apply '())
-                  cdr)|#
-                (lambda
-                  ([row : (Pairof Any
-                                  (-> (Listof Exact-Nonnegative-Integer)))])
-                  ((cdr row)))
-                rows)))
+           (for/list : (Listof (Listof (Exact-Nonnegative-Integer
+                                         -> (-> Exact-Nonnegative-Integer))))
+                     ([row rows])
+                     ; We don't know how long each row is.
+                     (reverse (let next-row
+                                : (Listof (Exact-Nonnegative-Integer
+                                            ->
+                                            (-> Exact-Nonnegative-Integer)))
+                                ([row-result (row)]
+                                 [return-val
+                                   : (Listof
+                                       (Exact-Nonnegative-Integer
+                                         -> (-> Exact-Nonnegative-Integer)))
+                                   '()])
+                                (if (void? row-result)
+                                  return-val
+                                  (next-row (row)
+                                            (cons row-result return-val))))))))
   (define len (length theItems))
+  (let ([ram-size ((RAM_SIZE))])
+    (when (len . > . ram-size)
+      (raise-user-error
+        (format "The provided program is too long max ~a was" ram-size)
+        len)))
   (define max-int ((MAX_INT)))
-  (set! iteration-count -1)
-  (if (len . > . ((RAM_SIZE)))
-    (raise-user-error
-      (format "The provided program is too long max ~a was" max-int)
-      len)
-    (for/list {[item : Exact-Nonnegative-Integer theItems]}
-              (set! iteration-count (iteration-count . + . 1))
-              ; Second pass - resolve the labels
-              (when (item . > . max-int)
-                (raise-user-error (format
-                                    "The item at ~a in memory is too large"
-                                    iteration-count)
-                                  item))
-              item)))
+  (define range-len (range len))
+  (for/list ([item-func
+               (for/list : (Listof (-> Exact-Nonnegative-Integer))
+                         ([item theItems]
+                          [index : Exact-Nonnegative-Integer range-len])
+                         ; Iterate over results and call each item with the
+                         ;   current memory value.
+                         ; We pass the iteration-count so it can use references
+                         (item index))]
+             [index range-len])
+            ; Get the values last so references work correctly
+            (define number (item-func))
+            (when (number . > . max-int)
+              (raise-user-error
+                (format "The item at ~a in memory is too large"
+                        index)
+                number))
+            number))
 (module+ test
          (test-equal? "Test ocm-asm-inst"
-                      ((ocm-asm-inst #f NEXT))
+                      (for/list : (Listof Exact-Nonnegative-Integer)
+                                ([item ((ocm-asm-inst #f NEXT))])
+                                (item))
                       '(3))
+         (: apply-over-list : (All (A)
+                                   (Listof (-> A))
+                                   ->
+                                   (Listof A)))
+         (define (apply-over-list items)
+           (for/list ([item items])
+                     (item)))
          (test-exn "Test ocm-asm-ref fail"
                    exn:fail:contract?
-                   (thunk (parameterize ([labels (make-hash)])
-                            ((ocm-asm-ref #f after-string)))))
+                   (parameterize ([labels (make-hash)])
+                     (let ([items ((ocm-asm-ref #f after-string))])
+                       (thunk (apply-over-list items)))))
          (test-equal? "Test ocm-asm-ref pass"
-                      (parameterize
-                        ([labels (make-hash '((after-string . 9)))])
-                        ((ocm-asm-ref #f after-string)))
+                      (parameterize ([labels (make-hash '((after-string . 9)))])
+                        (apply-over-list ((ocm-asm-ref #f after-string))))
                       '(9))
+         (test-equal? "Test ocm-asm-ref pass out-of-order"
+                      (parameterize ([labels (make-hash)])
+                        (define ref (ocm-asm-ref #f after-string))
+                        (hash-set! (labels) 'after-string 9)
+                        (apply-over-list (ref)))
+                      '(9))
+         ; Is this actually something we want?
+         #|(test-equal? "Test ocm-asm-ref pass out-of-order B"
+                      (parameterize ([labels (make-hash)])
+                        (for/list : (Listof Exact-Nonnegative-Integer)
+                                  ([item ((ocm-asm-ref #f after-string))])
+                                  (hash-set! (labels) 'after-string 9)
+                                  (item)))
+                      '(9))|#
          (test-case "Test ocm-asm-label"
                     (parameterize ([labels (make-hash)])
                       (check-equal? ((ocm-asm-label #f begin-string) 3)
@@ -99,36 +167,127 @@
                                     "modified hash")))
          (test-equal? "Test ocm-asm-str bittage 6"
                       (parameterize ([BITTAGE 6])
-                        ((ocm-asm-str "ASDF")))
+                        (apply-over-list ((ocm-asm-str "ASDF"))))
                       '(31 3 5 9 13))
          (test-equal? "Test ocm-asm-str bittage 8"
                       (parameterize ([BITTAGE 8])
-                        ((ocm-asm-str "ASDF")))
+                        (apply-over-list ((ocm-asm-str "ASDF"))))
                       '(65 83 68 70))
-         (test-equal? "Test ocm-asm-row"
-                      ((cdr (ocm-asm-row (lambda (number)
-                                           (void))
-                                         (lambda (number)
-                                           (void))
-                                         (thunk '(31 3 5 9 13))
-                                         #f)))
-                      '(31 3 5 9 13))
+         (: wrap-nums : (Listof Exact-Nonnegative-Integer)
+            -> (-> (Listof (-> Exact-Nonnegative-Integer))))
+         (define ((wrap-nums nums))
+           (for/list ([num nums])
+                     (thunk (cast num Exact-Nonnegative-Integer))))
+         (test-equal?
+           "Test ocm-asm-row"
+           (let ([get-item (ocm-asm-row (lambda _ (void))
+                                        (lambda _ (void))
+                                        (wrap-nums '(31 3 5 9 13))
+                                        #f)])
+             (apply-over-list
+               (reverse (let loop : (Listof (-> Exact-Nonnegative-Integer))
+                          ([item (get-item)]
+                           [index : Exact-Nonnegative-Integer 0]
+                           [items : (Listof (-> Exact-Nonnegative-Integer))
+                                  '()])
+                          (if (void? item)
+                            items
+                            (loop (get-item)
+                                  (index . + . 1)
+                                  (cons (item index)
+                                        items)))))))
+           '(31 3 5 9 13))
+         (test-case
+           "Test ocm-asm-row on real data"
+           (parameterize ([BITTAGE 8]
+                          [labels (make-hash)])
+             (check-equal?
+               (let ([get-item (ocm-asm-row (ocm-asm-label #f hi)
+                                            (ocm-asm-label #f lol)
+                                            (ocm-asm-str "ASDF")
+                                            #f)])
+                 (apply-over-list
+                   (reverse (let loop : (Listof (-> Exact-Nonnegative-Integer))
+                              ([item (get-item)]
+                               [index : Exact-Nonnegative-Integer 0]
+                               [items : (Listof (-> Exact-Nonnegative-Integer))
+                                      '()])
+                              (if (void? item)
+                                items
+                                (loop (get-item)
+                                      (index . + . 1)
+                                      (cons (item index)
+                                            items)))))))
+               '(65 83 68 70)
+                           "return")
+             (check-equal? (labels) (make-hash '((hi . 0) (lol . 0))) "labels")))
+         (test-equal?
+           "Test clean-rows execution order"
+           (let ([order '()])
+             (parameterize ([BITTAGE 6])
+               (clean-rows
+                 (list (ocm-asm-row (thunk (set! order (append order '(0)))
+                                           (list (thunk (set! order
+                                                          (append order '(7)))
+                                                        50)
+                                                 (thunk (set! order
+                                                          (append order '(8)))
+                                                        33)))
+                                    #f)
+                       (ocm-asm-row (thunk (set! order (append order '(1)))
+                                           (list (thunk (set! order
+                                                          (append order '(9)))
+                                                        30)
+                                                 (thunk (set! order
+                                                          (append order '(10)))
+                                                        32)))
+                                    #f)
+                       (ocm-asm-row (lambda _ (set! order (append order '(4))))
+                                    (thunk (set! order (append order '(2)))
+                                           (list (thunk (set! order
+                                                          (append order '(11)))
+                                                        31)
+                                                 (thunk (set! order
+                                                          (append order '(12)))
+                                                        21)))
+                                    #f)
+                       (ocm-asm-row (lambda _ (set! order (append order '(5))))
+                                    (lambda _ (set! order (append order '(6))))
+                                    (thunk (set! order (append order '(3)))
+                                           (list (thunk (set! order
+                                                          (append order '(13)))
+                                                        33)
+                                                 (thunk (set! order
+                                                          (append order '(14)))
+                                                        32)))
+                                    #f))))
+             order)
+           (range 15))
          (test-case
            "Test clean-rows"
            (parameterize ([labels (make-hash)]
                           [BITTAGE 6])
              (check-equal?
-               (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT) #f)
-                                 (ocm-asm-row (ocm-asm-ref #f after-string) #f)
-                                 (ocm-asm-row (ocm-asm-label #f begin-string)
-                                              (ocm-asm-str "ASDF")
-                                              #f)
-                                 (ocm-asm-row (ocm-asm-label #f after-string)
-                                              (ocm-asm-inst #f SWAP)
-                                              #f)))
+               (clean-rows
+                 (list (ocm-asm-row (ocm-asm-inst #f NEXT)
+                                    #f)
+                       (ocm-asm-row (ocm-asm-ref #f after-string) #f)
+                       (ocm-asm-row (ocm-asm-label #f begin-string)
+                                    (ocm-asm-str "ASDF")
+                                    #f)
+                       (ocm-asm-row (ocm-asm-label #f after-string)
+                                    (ocm-asm-inst #f SWAP)
+                                    #f)))
                '(3 7 31 3 5 9 13 2)
                "return")
-             (check-equal? labels '() "labels"))))
+             (check-equal? (labels)
+                           (make-hash '((after-string . 7)
+                                        (begin-string . 2)))
+                           "labels"))))
+(displayln (ocm-asm-row (ocm-asm-label #f hi)
+                        (ocm-asm-label #f lol)
+                        (ocm-asm-str "ASDF")
+                        #f))
 (: ocm-asm-main-run :
    String
    (Mutable-Vectorof String)
@@ -202,10 +361,7 @@
                          (reverse (string->list binary)))
                        binary)))
          "\n")))
-(: ocm-asm-main :
-   (Listof (Pairof (Exact-Nonnegative-Integer -> Void)
-                   (-> (Listof Exact-Nonnegative-Integer))))
-   -> Void)
+(: ocm-asm-main : Unclean-Rows -> Void)
 (define (ocm-asm-main items)
   (define pre-args (let ([a (current-command-line-arguments)])
                      (if ((vector-length a) . = . 0)
