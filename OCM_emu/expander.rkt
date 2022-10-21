@@ -1,19 +1,19 @@
-#lang typed/racket
+#lang racket
 (require syntax/parse/define "encodings.rkt" "runtime.rkt")
-(module+ test (require typed/rackunit))
+(module+ test (require rackunit))
 (provide #%datum)
 (define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr nl)
                           (ocm-asm-row-helper (list label-list ...)
                                               data))
-(define-type Unclean-Row (-> (U (Exact-Nonnegative-Integer
+#;(define-type Unclean-Row (-> (U (Exact-Nonnegative-Integer
                                   -> (-> Exact-Nonnegative-Integer))
                                 Void)))
-(: ocm-asm-row-helper
+#;(: ocm-asm-row-helper
    : (Listof (Exact-Nonnegative-Integer -> Void))
    (-> (Listof (-> Exact-Nonnegative-Integer)))
    -> Unclean-Row)
 (define (ocm-asm-row-helper label-list data)
-  (define remaining-data : (U Void (Listof (-> Exact-Nonnegative-Integer)))
+  (define remaining-data ;: (U Void (Listof (-> Exact-Nonnegative-Integer)))
     (void))
   ; Call to get next lambda, or void
   (thunk (if (null? remaining-data)
@@ -21,17 +21,14 @@
            (let ([first (void? remaining-data)])
              (when first (set! remaining-data (data)))
              ; We have to cast it after setting it for the first time
-             (let* ([rd (cast remaining-data
-                              (Listof (-> Exact-Nonnegative-Integer)))]
-                    [old-car (car rd)])
-               (set! remaining-data (cdr rd))
-               (set! rd '()) ; Free up memory
-               ; Call to get value
-               (lambda (location)
-                 (when first
-                   (for ([label label-list])
-                        (label (cast location Exact-Nonnegative-Integer))))
-                 old-car))))))
+             (define old-car (car remaining-data))
+             (set! remaining-data (cdr remaining-data))
+             ; Call to get value
+             (lambda (location)
+               (when first
+                 (for ([label label-list])
+                      (label location)))
+               old-car)))))
 (provide ocm-asm-row)
 (define-syntax-parse-rule (ocm-asm-dta pound dta:nat)
                           (thunk (list (thunk dta))))
@@ -39,63 +36,55 @@
 (define-syntax-parse-rule (ocm-asm-inst colon inst:id)
                           ; inst is a reference to a number
                           (osm-asm-inst-func (quote inst)))
-(: osm-asm-inst-func : Symbol -> (-> (Listof (-> Exact-Nonnegative-Integer))))
+;(: osm-asm-inst-func : Symbol -> (-> (Listof (-> Exact-Nonnegative-Integer))))
 (define ((osm-asm-inst-func inst))
-  (list (thunk (symbol->num (cast inst Instruction-Symbol)))))
+  (list (thunk (symbol->num inst))))
 (provide ocm-asm-inst)
 (define-syntax-parse-rule (ocm-asm-mb parse-tree:expr)
                           (#%module-begin parse-tree))
 (define labels
-  : (Parameterof (Mutable-HashTable Symbol Exact-Nonnegative-Integer))
-  (make-parameter (cast (make-hash)
-                        (Mutable-HashTable Symbol Exact-Nonnegative-Integer))))
+  ; TODO : (Parameterof (Mutable-HashTable Symbol Exact-Nonnegative-Integer))
+  (make-parameter (make-hash)))
 (define-syntax-parse-rule (ocm-asm-ref percent name:id)
                           (ocm-asm-ref-func (quote name)))
 ; Can throw error. User needs to see it.
-(: ocm-asm-ref-func : Symbol -> (-> (Listof (-> Exact-Nonnegative-Integer))))
+;(: ocm-asm-ref-func : Symbol -> (-> (Listof (-> Exact-Nonnegative-Integer))))
 (define ((ocm-asm-ref-func name))
   (list (thunk (hash-ref (labels) name))))
 (provide ocm-asm-ref)
 (define-syntax-parse-rule (ocm-asm-label atsign name:id nl ...)
                           (ocm-asm-label-func (quote name)))
-(: ocm-asm-label-func : Symbol -> (Exact-Nonnegative-Integer -> Void))
+;(: ocm-asm-label-func : Symbol -> (Exact-Nonnegative-Integer -> Void))
 (define ((ocm-asm-label-func name) line-no)
   (hash-set! (labels) name line-no))
 (provide ocm-asm-label)
 (provide (rename-out [ocm-asm-mb #%module-begin]))
 (define (should-use-ita?)
   ((BITTAGE) . < . 7)) 
-(: ocm-asm-str : String -> (-> (Listof (-> Exact-Nonnegative-Integer))))
+;(: ocm-asm-str : String -> (-> (Listof (-> Exact-Nonnegative-Integer))))
 (define ((ocm-asm-str data))
     (for/list ([num (if (should-use-ita?)
                       (encode-ITA_2 data)
                       (map char->integer (string->list data)))])
-              (thunk (cast num Exact-Nonnegative-Integer))))
+              (thunk num)))
 (provide ocm-asm-str)
-(define-type Unclean-Rows (Listof Unclean-Row))
-(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
-(define (clean-rows rows) 
+;(define-type Unclean-Rows (Listof Unclean-Row))
+;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
+(define (clean-rows rows)
   ;Iterate over `rows` and append the results
   (define theItems
     (apply append
-           (for/list : (Listof (Listof (Exact-Nonnegative-Integer
-                                         -> (-> Exact-Nonnegative-Integer))))
-                     ([row rows])
+           (for/list ([row rows])
                      ; We don't know how long each row is.
-                     (reverse (let next-row
-                                : (Listof (Exact-Nonnegative-Integer
-                                            ->
-                                            (-> Exact-Nonnegative-Integer)))
-                                ([row-result (row)]
-                                 [return-val
-                                   : (Listof
-                                       (Exact-Nonnegative-Integer
-                                         -> (-> Exact-Nonnegative-Integer)))
-                                   '()])
-                                (if (void? row-result)
-                                  return-val
-                                  (next-row (row)
-                                            (cons row-result return-val))))))))
+                     ; For that matter, I have no idea what this code does
+                     ; anymore. Why? Just Why?
+                     (reverse (let next-row ([return-val '()])
+                                (if row
+                                  (let ([row-result (row)])
+                                    (if (void? row-result)
+                                      return-val
+                                      (next-row (cons row-result return-val))))
+                                  return-val))))))
   (define len (length theItems))
   (let ([ram-size ((RAM_SIZE))])
     (when (len . > . ram-size)
@@ -105,9 +94,8 @@
   (define max-int ((MAX_INT)))
   (define range-len (range len))
   (for/list ([item-func
-               (for/list : (Listof (-> Exact-Nonnegative-Integer))
-                         ([item theItems]
-                          [index : Exact-Nonnegative-Integer range-len])
+               (for/list ([item theItems]
+                          [index range-len])
                          ; Iterate over results and call each item with the
                          ;   current memory value.
                          ; We pass the iteration-count so it can use references
@@ -123,11 +111,10 @@
             number))
 (module+ test
          (test-equal? "Test ocm-asm-inst"
-                      (for/list : (Listof Exact-Nonnegative-Integer)
-                                ([item ((ocm-asm-inst #f NEXT))])
+                      (for/list ([item ((ocm-asm-inst #f NEXT))])
                                 (item))
                       '(3))
-         (: apply-over-list : (All (A)
+         #;(: apply-over-list : (All (A)
                                    (Listof (-> A))
                                    ->
                                    (Listof A)))
@@ -173,11 +160,11 @@
                       (parameterize ([BITTAGE 8])
                         (apply-over-list ((ocm-asm-str "ASDF"))))
                       '(65 83 68 70))
-         (: wrap-nums : (Listof Exact-Nonnegative-Integer)
+         #;(: wrap-nums : (Listof Exact-Nonnegative-Integer)
             -> (-> (Listof (-> Exact-Nonnegative-Integer))))
          (define ((wrap-nums nums))
            (for/list ([num nums])
-                     (thunk (cast num Exact-Nonnegative-Integer))))
+                     (thunk num)))
          (test-equal?
            "Test ocm-asm-row"
            (let ([get-item (ocm-asm-row (lambda _ (void))
@@ -185,11 +172,9 @@
                                         (wrap-nums '(31 3 5 9 13))
                                         #f)])
              (apply-over-list
-               (reverse (let loop : (Listof (-> Exact-Nonnegative-Integer))
-                          ([item (get-item)]
-                           [index : Exact-Nonnegative-Integer 0]
-                           [items : (Listof (-> Exact-Nonnegative-Integer))
-                                  '()])
+               (reverse (let loop ([item (get-item)]
+                           [index 0]
+                           [items '()])
                           (if (void? item)
                             items
                             (loop (get-item)
@@ -207,11 +192,9 @@
                                             (ocm-asm-str "ASDF")
                                             #f)])
                  (apply-over-list
-                   (reverse (let loop : (Listof (-> Exact-Nonnegative-Integer))
-                              ([item (get-item)]
-                               [index : Exact-Nonnegative-Integer 0]
-                               [items : (Listof (-> Exact-Nonnegative-Integer))
-                                      '()])
+                   (reverse (let loop ([item (get-item)]
+                                       [index 0]
+                                       [items '()])
                               (if (void? item)
                                 items
                                 (loop (get-item)
@@ -288,13 +271,13 @@
                         (ocm-asm-label #f lol)
                         (ocm-asm-str "ASDF")
                         #f))
-(: ocm-asm-main-run :
+#;(: ocm-asm-main-run :
    String
    (Mutable-Vectorof String)
    (-> (Listof Exact-Nonnegative-Integer))
    -> Void)
 (define (ocm-asm-main-run commandName args actualItems)
-     (define new-bittage : Exact-Nonnegative-Integer (BITTAGE))
+     (define new-bittage (BITTAGE))
      (define new-dbg-port (debugger-port))
      (command-line
        #:program commandName
@@ -302,29 +285,25 @@
        #:once-each
        [("-B" "--bittage")
         => (lambda (flag arg)
-             (set! new-bittage
-               (cast (string->number (cast arg String))
-                     Exact-Nonnegative-Integer)))
+             (set! new-bittage (string->number arg)))
         '("Set the bittage of the emulator" "the bittage")]
        [("-v" "--verbose")
         "Send debug output to stderr"
         (set! new-dbg-port (current-error-port))])
      (parameterize ([BITTAGE new-bittage]
                     [debugger-port new-dbg-port])
-       (run-ocm-asm #:numbers
-                    (cast (list->vector (actualItems))
-                          (Mutable-Vectorof Exact-Nonnegative-Integer))))
+       (run-ocm-asm #:numbers (list->vector (actualItems))))
      ; Prevents printing when we don't need to
      (void))
-(: ocm-asm-main-memorydump :
+#;(: ocm-asm-main-memorydump :
    String
    (Mutable-Vectorof String)
    (-> (Listof Exact-Nonnegative-Integer))
    -> Void)
 (define (ocm-asm-main-memorydump commandName args actualItems)
-     (define big-endian : Boolean #f)
-     (define decimal : Boolean #f)
-     (define new-bittage : Exact-Nonnegative-Integer (BITTAGE))
+     (define big-endian #f)
+     (define decimal #f)
+     (define new-bittage (BITTAGE))
      (command-line
        #:program commandName
        #:argv args
@@ -337,20 +316,16 @@
         (set! big-endian #t)]
        [("-B" "--bittage")
         => (lambda (flag arg)
-             (set! new-bittage
-               (cast (string->number (cast arg String))
-                     Exact-Nonnegative-Integer)))
+             (set! new-bittage (string->number arg)))
         '("Set the bittage of the memory dumper"
           "the bittage")])
-     (define numbers : (Listof Exact-Nonnegative-Integer)
-       (parameterize ([BITTAGE new-bittage])
-         (actualItems)))
+     (define numbers (parameterize ([BITTAGE new-bittage])
+                       (actualItems)))
      (displayln
        (string-join
          (if decimal
            (map ~a numbers)
-           (for/list : (Listof String)
-                     ([number numbers])
+           (for/list ([number numbers])
                      (define binary
                        (~a (format "~b" number)
                            #:min-width new-bittage
@@ -361,7 +336,7 @@
                          (reverse (string->list binary)))
                        binary)))
          "\n")))
-(: ocm-asm-main : Unclean-Rows -> Void)
+;(: ocm-asm-main : Unclean-Rows -> Void)
 (define (ocm-asm-main items)
   (define pre-args (let ([a (current-command-line-arguments)])
                      (if ((vector-length a) . = . 0)
