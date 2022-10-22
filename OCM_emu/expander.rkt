@@ -8,13 +8,8 @@
 #;(define-type Unclean-Row (-> (U (Exact-Nonnegative-Integer
                                   -> (-> Exact-Nonnegative-Integer))
                                 Void)))
-#;(: ocm-asm-row-helper
-   : (Listof (Exact-Nonnegative-Integer -> Void))
-   (-> (Listof (-> Exact-Nonnegative-Integer)))
-   -> Unclean-Row)
 (define (ocm-asm-row-helper label-list data)
-  (define remaining-data ;: (U Void (Listof (-> Exact-Nonnegative-Integer)))
-    (void))
+  (define remaining-data (void))
   ; Call to get next lambda, or void
   (thunk (if (null? remaining-data)
            (void)
