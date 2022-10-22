@@ -1,5 +1,8 @@
 #lang racket
-(require syntax/parse/define "encodings.rkt" "runtime.rkt")
+(require syntax/parse/define "encodings.rkt" (only-in "runtime.rkt"
+                                                      run-ocm-asm BITTAGE
+                                                      RAM_SIZE MAX_INT debugger-port))
+(require (for-syntax (only-in "runtime.rkt" symbol->num)))
 (module+ test (require rackunit))
 (provide #%datum)
 (define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr nl)
@@ -28,9 +31,13 @@
 (define-syntax-parse-rule (ocm-asm-dta pound dta:nat)
                           (thunk (list (thunk dta))))
 (provide ocm-asm-dta)
-(define-syntax-parse-rule (ocm-asm-inst colon inst:id)
-                          ; inst is a reference to a number
-                          (thunk (list (thunk (symbol->num 'inst)))))
+(define-syntax (ocm-asm-inst stx)
+  (syntax-case stx ()
+    ([_ colon inst]
+     (with-syntax ([num (symbol->num (string->symbol (symbol->string
+                                                       (syntax->datum
+                                                         #'inst))))])
+       #'(thunk (list (thunk num)))))))
 (provide ocm-asm-inst)
 (define-syntax-parse-rule (ocm-asm-mb parse-tree:expr)
                           (#%module-begin parse-tree))
