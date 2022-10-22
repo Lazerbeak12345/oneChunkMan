@@ -35,10 +35,7 @@
 (provide ocm-asm-dta)
 (define-syntax-parse-rule (ocm-asm-inst colon inst:id)
                           ; inst is a reference to a number
-                          (osm-asm-inst-func (quote inst)))
-;(: osm-asm-inst-func : Symbol -> (-> (Listof (-> Exact-Nonnegative-Integer))))
-(define ((osm-asm-inst-func inst))
-  (list (thunk (symbol->num inst))))
+                          (thunk (list (thunk (symbol->num 'inst)))))
 (provide ocm-asm-inst)
 (define-syntax-parse-rule (ocm-asm-mb parse-tree:expr)
                           (#%module-begin parse-tree))
