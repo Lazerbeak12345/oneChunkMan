@@ -37,7 +37,7 @@
 (provide (rename-out [ocm-asm-mb #%module-begin]))
 (define labels (make-parameter (make-hash)))
 (define-syntax-parse-rule (ocm-asm-ref percent name:id)
-                          (list (thunk (hash-ref (labels) 'name))))
+                          (thunk (list (thunk (hash-ref (labels) 'name)))))
 (provide ocm-asm-ref)
 (define-syntax-parse-rule (ocm-asm-label atsign name:id nl ...)
                           (lambda (line-no)
