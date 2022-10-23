@@ -49,10 +49,10 @@
 (provide ocm-asm-label)
 (define (should-use-ita?)
   ((BITTAGE) . < . 7))
-;(: ocm-asm-str : String -> (-> (Listof (-> Exact-Nonnegative-Integer))))
-(define ((ocm-asm-str data))
+(define-syntax-parse-rule (ocm-asm-str data)
+                          (thunk 
   (for/list ([num (if (should-use-ita?) (encode-ITA_2 data) (map char->integer (string->list data)))])
-    (thunk num)))
+    (thunk num))))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
 ;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
