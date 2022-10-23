@@ -54,11 +54,14 @@
 (define-syntax (ocm-asm-str stx)
   (syntax-case stx ()
     [(_ data)
-     (with-syntax ([ITA_2-encoding (datum->syntax #'data (encode-ITA_2 (syntax->datum #'data)))])
-       #'(thunk (for/list ([num (if (should-use-ita?)
-                                    (list . ITA_2-encoding)
-                                    (map char->integer (string->list data)))])
-                  (thunk num))))]))
+     (with-syntax ([ITA_2-encoding (datum->syntax #'data (encode-ITA_2 (syntax->datum #'data)))]
+                   [UTF8?-encoding
+                    (datum->syntax #'data (map char->integer (string->list (syntax->datum #'data))))])
+       #'(thunk
+          (for/list ([num (if (should-use-ita?)
+                            (list . ITA_2-encoding)
+                            (list . UTF8?-encoding))])
+            (thunk num))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
 ;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
