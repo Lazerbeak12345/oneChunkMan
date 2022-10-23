@@ -1,8 +1,8 @@
 #lang racket
 (require syntax/parse/define
          "encodings.rkt"
-         (only-in "runtime.rkt" run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port))
-(require (for-syntax (only-in "runtime.rkt" symbol->num)))
+         (only-in "runtime.rkt" run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port)
+         (for-syntax (only-in "runtime.rkt" symbol->num) (only-in "encodings.rkt" encode-ITA_2)))
 (module+ test
   (require rackunit))
 (provide #%datum)
@@ -34,7 +34,9 @@
 (define-syntax (ocm-asm-inst stx)
   (syntax-case stx ()
     [[_ colon inst]
-     (with-syntax ([num (symbol->num (string->symbol (symbol->string (syntax->datum #'inst))))])
+     (with-syntax ([num (datum->syntax #'inst
+                                       (symbol->num (string->symbol
+                                                     (symbol->string (syntax->datum #'inst)))))])
        #'(thunk (list (thunk num))))]))
 (provide ocm-asm-inst)
 (define-syntax-parse-rule (ocm-asm-mb parse-tree:expr)
@@ -49,10 +51,14 @@
 (provide ocm-asm-label)
 (define (should-use-ita?)
   ((BITTAGE) . < . 7))
-(define-syntax-parse-rule (ocm-asm-str data)
-                          (thunk 
-  (for/list ([num (if (should-use-ita?) (encode-ITA_2 data) (map char->integer (string->list data)))])
-    (thunk num))))
+(define-syntax (ocm-asm-str stx)
+  (syntax-case stx ()
+    [(_ data)
+     (with-syntax ([ITA_2-encoding (datum->syntax #'data (encode-ITA_2 (syntax->datum #'data)))])
+       #'(thunk (for/list ([num (if (should-use-ita?)
+                                    (list . ITA_2-encoding)
+                                    (map char->integer (string->list data)))])
+                  (thunk num))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
 ;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
