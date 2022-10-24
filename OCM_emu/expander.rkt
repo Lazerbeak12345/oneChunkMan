@@ -1,6 +1,5 @@
 #lang racket
 (require syntax/parse/define
-         "encodings.rkt"
          (only-in "runtime.rkt" run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port)
          (for-syntax (only-in "runtime.rkt" symbol->num) (only-in "encodings.rkt" encode-ITA_2)))
 (module+ test
