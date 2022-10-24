@@ -37,7 +37,7 @@
      (with-syntax ([num (datum->syntax #'inst
                                        (symbol->num (string->symbol
                                                      (symbol->string (syntax->datum #'inst)))))])
-       #'(thunk (list (thunk num))))]))
+       #'(ocm-asm-dta #f num))]))
 (provide ocm-asm-inst)
 (define-syntax-parse-rule (ocm-asm-mb parse-tree:expr)
   (#%module-begin parse-tree))
