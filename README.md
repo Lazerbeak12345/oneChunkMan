@@ -1,5 +1,7 @@
 # One Chunk Man
 
+[![Racket](https://img.shields.io/badge/-Made%20with%20Racket-darkred?logo=racket)](https://racket-lang.org)
+
 An Instruction Set Archetecture made for minecraft CPUs.
 Named as such because we want this to easily fit within one chunk.
 
