@@ -200,7 +200,6 @@
       '(3 7 31 3 5 9 13 2)
       "return")
      (check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
-(displayln (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF") #f))
 #;(: ocm-asm-main-run
      :
      String
