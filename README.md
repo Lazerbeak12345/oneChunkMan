@@ -33,7 +33,7 @@ easier using a very small (yet turing complete) redstone computer.
 
 None yet!
 
-### What it can be used for (outside of minecraft
+### What it can be used for (outside of minecraft)
 
 Heck if I know. The emulator I made seems to be just about as useful as yet
 another bf implementation.
