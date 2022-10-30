@@ -65,9 +65,11 @@ supports (Windows NT, macOS and Unix at time of writing)
 
 ## About the version numbers
 
-Right now, v4 is most likely to be what is implimented, as it's easier to use
-than v2, it's simpler than v3, yet _much_ faster than v1 (when using tapes for
-memory).
+Right now, v5 is most likely to be what is implimented
+
+- it's easier to use than all previous versions
+- It's simpler than v3 and v4
+- It's faster than all previous versions
 
 It's safe to assume that each major version offers little to no binary
 compatibility with the previous versions unless otherwise noted.
@@ -92,4 +94,7 @@ compatibility with the previous versions unless otherwise noted.
   - A HALT instruction (for this reason alone I question the usibility of the
     previous versions)
   - A no-operation instruction
-
+- v5: A modification to v4.
+  - Removes "directions"
+  - Adds `[#]` the "current location"
+  - Calls registers that the dev can't directly access "banks"
