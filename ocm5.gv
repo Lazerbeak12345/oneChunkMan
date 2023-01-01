@@ -1,0 +1,127 @@
+digraph ocm5 {
+    edge [ decorate = true ]
+    node [
+        style = filled
+        colorscheme=dark28
+    ]
+    RAM [ fillcolor = 1 ]
+    subgraph IOPorts {
+        node [ fillcolor = 2 ]
+        IN [ label = "<IN>" ]
+        OUT [ label = "<OUT>" ]
+    }
+    subgraph Registers {
+        node [ fillcolor = 3 ]
+        A [ label = "[A]" ]
+        B [ label = "[B]" ]
+    }
+    subgraph Banks {
+        node [ fillcolor = 4 ]
+        OPERATOR [ label = "[@]" ]
+        LOCATION [ label = "[#]" ]
+    }
+    subgraph Signals {
+        node [ fillcolor = 5 ]
+        POWER [ label = "{POWER}" ]
+
+        OVERFLOW [ label = "{OVERFLOW}" ]
+
+        GO [ label = "{GO}" ]
+        POWER -> GO [ label = "condition of "]
+        GO -> {
+            LOCATION ->
+            RAM ->
+            OPERATOR [ label = "send data on {GO}" ]
+        } [ label = "Update [@] to number at [#] in RAM"]
+
+        ROTATEONE [ label = "{ROTATEONE}" ]
+        ROTATEONE -> LOCATION [ label = "Increases by one" ]
+
+        STEP [ label = "{STEP}" ]
+        STEP -> ROTATEONE [ label = "1. Triggers first" ]
+        STEP -> GO [ label = "2. Triggers second" ]
+    }
+    subgraph Instructions {
+        OPERATOR -> {
+            NOP
+            HALT
+            SWAP
+            NEXT
+            GET
+            SET
+            IFGOTO
+            READIN
+            SENDOUT
+            ADD
+            SUBTRACT
+        } [ label = "Decode" ]
+
+        edge [colorscheme=paired12]
+        edge [ color = 1 ]
+        NOP -> STEP [ label = "Triggers" ]
+        
+        edge [ color = 2 ]
+        HALT -> POWER [ label = "Sets to OFF" ]
+        
+        edge [ color = 3 ]
+        SWAP -> {
+            A -> B [ label = "send data on SWAP" ]
+            B -> A [ label = "send data on SWAP" ]
+        } [ label = "1. Swap values stored in [A] and [B]"]
+        SWAP -> STEP [ label = "2. Trigger last"]
+        
+        edge [ color = 4 ]
+        NEXT -> ROTATEONE [ label = "1. Trigger first" ]
+        NEXT -> {
+            LOCATION -> RAM -> A [ label = "send data on NEXT" ]
+        } [ label = "2. Set [A] to number at [#] in ram" ]
+        NEXT -> STEP [ label = "3. Trigger last"]
+        
+        edge [ color = 5 ]
+        GET -> {
+            B -> RAM -> A [ label = "send data on GET"]
+        } [ label = "1. Set [A] to the number at [B] in ram"]
+        GET -> STEP [ label = "2. Trigger last"]
+        
+        edge [ color = 6 ]
+        SET -> {
+            { B; A } -> RAM [ label = "send data on SET"]
+        } [ label = "1. Set set number at [B] in the ram to [A]" ]
+        SET -> STEP [ label = "2. Trigger last" ]
+        
+        edge [ color = 7 ]
+        OVERFLOW -> {
+            IFGOTO -> { B -> LOCATION } [ label = "1. Set [#] to [B]" ]
+            IFGOTO -> GO [ label = "2. Trigger last"]
+        } [ label = "condition of "]
+        OVERFLOW -> {
+            IFGOTO -> STEP [ label = "Triggers"]
+        } [ label = "inverse condition of"]
+        
+        edge [ color = 8 ]
+        READIN -> {
+            IN -> A [ label = "send data on READIN" ]
+        } [ label = "1. Set [A] to <IN>" ]
+        READIN -> STEP [ label = "2. Trigger last" ]
+
+        edge [ color = 9 ]
+        SENDOUT -> {
+            A -> OUT [ label = "send data on SENDOUT" ]
+        } [ label = "1. Set <OUT> to [A]" ]
+        SENDOUT -> STEP [ label = "2. Trigger last" ]
+
+        edge [ color = 10 ]
+        ADD -> {
+            { A; B } -> A [ label = "add values on ADD" ]
+        } [ label = "1. Change [A] to it's old value plus [B]"]
+        ADD -> OVERFLOW [ label = "2. If there was an overflow, set {OVERFLOW}, or else unset it."]
+        ADD -> STEP [ label = "3. Trigger last" ]
+
+        edge [ color = 11 ]
+        SUBTRACT -> {
+            { A; B } -> A [ label = "subtract values on SUBTRACT" ]
+        } [ label = "1. Change [A] to it's old value minus [B]" ]
+        SUBTRACT -> OVERFLOW [ label = "2. If there was an underflow, set {OVERFLOW}, or else unset it." ]
+        SUBTRACT -> STEP [ label = "3. Trigger last" ]
+    }
+}
