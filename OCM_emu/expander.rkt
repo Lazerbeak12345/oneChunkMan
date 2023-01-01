@@ -1,6 +1,6 @@
 #lang racket
 (require syntax/parse/define
-         (only-in "runtime.rkt" run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port)
+         (only-in "runtime.rkt" ocm-asm-main-run run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port)
          (for-syntax (only-in "runtime.rkt" symbol->num) (only-in "encodings.rkt" encode-ITA_2)))
 (module+ test
   (require rackunit))
@@ -200,28 +200,6 @@
       '(3 7 31 3 5 9 13 2)
       "return")
      (check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
-#;(: ocm-asm-main-run
-     :
-     String
-     (Mutable-Vectorof String)
-     (-> (Listof Exact-Nonnegative-Integer))
-     ->
-     Void)
-(define (ocm-asm-main-run commandName args actualItems)
-  (define new-bittage (BITTAGE))
-  (define new-dbg-port (debugger-port))
-  (command-line
-   #:program commandName
-   #:argv args
-   #:once-each [("-B" "--bittage")
-                =>
-                (lambda (flag arg) (set! new-bittage (string->number arg)))
-                '("Set the bittage of the emulator" "the bittage")]
-   [("-v" "--verbose") "Send debug output to stderr" (set! new-dbg-port (current-error-port))])
-  (parameterize ([BITTAGE new-bittage] [debugger-port new-dbg-port])
-    (run-ocm-asm #:numbers (list->vector (actualItems))))
-  ; Prevents printing when we don't need to
-  (void))
 #;(: ocm-asm-main-memorydump
      :
      String

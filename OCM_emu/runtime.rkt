@@ -1,5 +1,5 @@
 #lang typed/racket/base
-(require racket/function racket/vector)
+(require racket/function racket/vector racket/cmdline)
 (module+ test (require typed/rackunit))
 (provide symbol->num num->instruction run-ocm-asm)
 (define-type Instruction-Symbol (U 'NOP 'HALT 'SWAP 'NEXT 'GET 'SET 'IFGOTO
@@ -293,4 +293,31 @@
                         `(#(3 9 2 3 3 10 1) 6 ,(- ((MAX_INT)) 6) 9 #t)))
          ; TODO: test MAX_INT and RAM_SIZE params
          )
+; TODO this will need to be redone later. Move to diffferent file? IDK.
 
+(: ocm-asm-main-run
+     :
+     String
+     (Mutable-Vectorof String)
+     (-> (Listof Exact-Nonnegative-Integer))
+     ->
+     Void)
+(define (ocm-asm-main-run commandName args actualItems)
+  (define new-bittage : Exact-Nonnegative-Integer (BITTAGE))
+  (define new-dbg-port (debugger-port))
+  (command-line
+   #:program commandName
+   #:argv args
+   #:once-each [("-B" "--bittage")
+                =>
+                (lambda (flag arg)
+                  (set! new-bittage (cast (string->number (cast arg String))
+                                          Exact-Nonnegative-Integer)))
+                '("Set the bittage of the emulator" "the bittage")]
+   [("-v" "--verbose") "Send debug output to stderr" (set! new-dbg-port (current-error-port))])
+  (parameterize ([BITTAGE new-bittage] [debugger-port new-dbg-port])
+    (run-ocm-asm #:numbers (cast (list->vector (actualItems))
+                                 (Mutable-Vectorof Exact-Nonnegative-Integer))))
+  ; Prevents printing when we don't need to
+  (void))
+(provide ocm-asm-main-run)
