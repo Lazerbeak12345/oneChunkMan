@@ -1,6 +1,6 @@
 #lang racket
 (require syntax/parse/define
-         (only-in "runtime.rkt" ocm-asm-main-run run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port)
+         (only-in "runtime.rkt" ocm-asm-main-memorydump ocm-asm-main-run run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port)
          (for-syntax (only-in "runtime.rkt" symbol->num) (only-in "encodings.rkt" encode-ITA_2)))
 (module+ test
   (require rackunit))
@@ -200,53 +200,6 @@
       '(3 7 31 3 5 9 13 2)
       "return")
      (check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
-#;(: ocm-asm-main-memorydump
-     :
-     String
-     (Mutable-Vectorof String)
-     (-> (Listof Exact-Nonnegative-Integer))
-     ->
-     Void)
-(define (ocm-asm-main-memorydump commandName args actualItems)
-  (define big-endian #f)
-  (define mode 'binary)
-  (define new-bittage (BITTAGE))
-  (command-line
-   #:program commandName
-   #:argv args
-   #:once-any
-   [("-d" "--decimal")
-                "Print decimal numbers instead of binary numbers. Ignores flags relating to bittage"
-                (set! mode 'decimal)]
-   [("-H" "--hexidecimal" "--hex")
-                "Print heidecimal numbers instead of binary numbers. Ignores flags relating to bittage"
-                (set! mode 'hex)]
-   #:once-each
-   [("-b" "--big-endian") "Display in big endian form instead of little endian" (set! big-endian #t)]
-   [("-B" "--bittage")
-    =>
-    (lambda (flag arg) (set! new-bittage (string->number arg)))
-    '("Set the bittage of the memory dumper" "the bittage")])
-  (define numbers (parameterize ([BITTAGE new-bittage]) (actualItems)))
-  (displayln
-   (string-join
-    (match mode
-      ['decimal (map ~a numbers)]
-      ['hex (for/list ([number numbers])
-              (~r number
-                  #:base 16
-                  #:min-width (ceiling (/ new-bittage 4)) ; One hex digit is exactly 4 binary digits
-                  #:pad-string "0"))]
-      ['binary (for/list ([number numbers])
-                 (define binary (~r number
-                                    #:base 2
-                                    #:min-width new-bittage
-                                    #:pad-string "0"))
-                 (if big-endian
-                   (list->string (reverse (string->list binary)))
-                   binary))]
-      [else (displayln "ERROR! unknown mode")])
-    "\n")))
 ;(: ocm-asm-main : Unclean-Rows -> Void)
 (define (ocm-asm-main items)
   (define pre-args

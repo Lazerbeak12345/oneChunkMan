@@ -1,5 +1,6 @@
 #lang typed/racket/base
-(require racket/function racket/vector racket/cmdline)
+(require racket/function racket/vector racket/cmdline racket/string
+         racket/match racket/format racket/list)
 (module+ test (require typed/rackunit))
 (provide symbol->num num->instruction run-ocm-asm)
 (define-type Instruction-Symbol (U 'NOP 'HALT 'SWAP 'NEXT 'GET 'SET 'IFGOTO
@@ -311,8 +312,7 @@
    #:once-each [("-B" "--bittage")
                 =>
                 (lambda (flag arg)
-                  (set! new-bittage (cast (string->number (cast arg String))
-                                          Exact-Nonnegative-Integer)))
+                  (set! new-bittage (cast (string->number (cast arg String)) Exact-Nonnegative-Integer)))
                 '("Set the bittage of the emulator" "the bittage")]
    [("-v" "--verbose") "Send debug output to stderr" (set! new-dbg-port (current-error-port))])
   (parameterize ([BITTAGE new-bittage] [debugger-port new-dbg-port])
@@ -321,3 +321,56 @@
   ; Prevents printing when we don't need to
   (void))
 (provide ocm-asm-main-run)
+(: ocm-asm-main-memorydump
+     :
+     String
+     (Mutable-Vectorof String)
+     (-> (Listof Exact-Nonnegative-Integer))
+     ->
+     Void)
+(define (ocm-asm-main-memorydump commandName args actualItems)
+  (define big-endian : Boolean #f)
+  (define mode 'binary)
+  (define new-bittage : Exact-Nonnegative-Integer (BITTAGE))
+  (command-line
+   #:program commandName
+   #:argv args
+   #:once-any
+   [("-d" "--decimal")
+                "Print decimal numbers instead of binary numbers. Ignores flags relating to bittage"
+                (set! mode 'decimal)]
+   [("-H" "--hexidecimal" "--hex")
+                "Print heidecimal numbers instead of binary numbers. Ignores flags relating to bittage"
+                (set! mode 'hex)]
+   #:once-each
+   [("-b" "--big-endian") "Display in big endian form instead of little endian" (set! big-endian #t)]
+   [("-B" "--bittage")
+    =>
+    (lambda (flag arg) (set! new-bittage (cast (string->number (cast arg String))
+                                          Exact-Nonnegative-Integer)))
+    '("Set the bittage of the memory dumper" "the bittage")])
+  (define numbers : (Listof Exact-Nonnegative-Integer)
+    (parameterize ([BITTAGE new-bittage]) (actualItems)))
+  (displayln
+   (string-join
+    (match mode
+      ['decimal (map ~a numbers)]
+      ['hex (for/list : (Listof String)
+              ([number : Exact-Nonnegative-Integer numbers])
+              (~r number
+                  #:base 16
+                  #:min-width (ceiling (/ new-bittage 4)) ; One hex digit is exactly 4 binary digits
+                  #:pad-string "0"))]
+      ['binary (for/list : (Listof String)
+                 ([number : Exact-Nonnegative-Integer numbers])
+                 (define binary (~r number
+                                    #:base 2
+                                    #:min-width new-bittage
+                                    #:pad-string "0"))
+                 (if big-endian
+                   (list->string (reverse (string->list binary)))
+                   binary))]
+      [else (displayln "ERROR! unknown mode")
+            '()])
+    "\n")))
+(provide ocm-asm-main-memorydump)
