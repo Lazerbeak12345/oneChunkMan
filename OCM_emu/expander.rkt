@@ -66,25 +66,35 @@
        #'(thunk (if (should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
-;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
-(define (clean-rows rows)
-  ;Iterate over `rows` and append the results
-  (define theItems
-    (apply append
-           (for/list ([row rows])
+; TODO this code sucks. Figure out how it works and recreate it using only
+; macros. Real macros. No thunks.
+(define (call-the-rows-or-smth-idk-i-didnt-document-this-code rows)
+  (define memory-chunks
+    (for/list ([row rows])
              ; We don't know how long each row is.
              ; For that matter, I have no idea what this code does
              ; anymore. Why? Just Why?
-             (reverse
-              (let next-row ([return-val '()])
-                (if row
-                    (let ([row-result (row)])
-                      (if (void? row-result) return-val (next-row (cons row-result return-val))))
-                    return-val))))))
+             (if row
+             (let ([word-thunks (let next-row ([return-val '()])
+                                  (let ([row-result (row)])
+                                    (if (void? row-result)
+                                      return-val
+                                      (next-row (cons row-result return-val)))))])
+               (reverse word-thunks))
+             '())
+             ))
+  ; Each contains multiple words of memory, each word bundled within a thunk.
+  (apply append memory-chunks))
+;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
+(define (clean-rows rows)
+  ;Iterate over `rows` and append the results
+  (define theItems (call-the-rows-or-smth-idk-i-didnt-document-this-code rows))
   (define len (length theItems))
   (let ([ram-size ((RAM_SIZE))])
     (when (len . > . ram-size)
-      (raise-user-error (format "The provided program is too long max ~a was" ram-size) len)))
+      (raise-user-error (format (string-join "Max program length is ~a. The "
+                                             "provided program is too long. "
+                                             "was") ram-size) len)))
   (define max-int ((MAX_INT)))
   (define range-len (range len))
   (for/list ([item-func (for/list ([item theItems] [index range-len])
