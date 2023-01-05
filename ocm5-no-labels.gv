@@ -1,0 +1,128 @@
+digraph ocm5Logic {
+    edge [ decorate = true ]
+    node [
+        style = filled
+        colorscheme=dark28
+    ]
+    RAM [ fillcolor = 1 ]
+    subgraph IOPorts {
+        node [ fillcolor = 2 ]
+        IN [ label = "<IN>" ]
+        OUT [ label = "<OUT>" ]
+    }
+    subgraph Registers {
+        node [ fillcolor = 3 ]
+        A [ label = "[A]" ]
+        B [ label = "[B]" ]
+    }
+    subgraph Banks {
+        node [ fillcolor = 4 ]
+        OPERATOR [ label = "[@]" ]
+        LOCATION [ label = "[#]" ]
+    }
+    subgraph Signals {
+        node [ fillcolor = 5 ]
+        POWER [ label = "{POWER}" ]
+
+        OVERFLOW [ label = "{OVERFLOW}" ]
+
+        GO [ label = "{GO}" ]
+        POWER -> GO
+        GO -> {
+            LOCATION ->
+            RAM ->
+            OPERATOR
+        }
+
+        ROTATEONE [ label = "{ROTATEONE}" ]
+        ROTATEONE -> LOCATION
+
+        STEP [ label = "{STEP}" ]
+        STEP -> ROTATEONE
+        STEP -> GO
+    }
+    subgraph Instructions {
+        node [ fillcolor = 6 ]
+        OPERATOR -> {
+            NOP
+            HALT
+            SWAP
+            NEXT
+            GET
+            SET
+            IFGOTO
+            READIN
+            SENDOUT
+            ADD
+            SUBTRACT
+        }
+
+        edge [colorscheme=paired12]
+        edge [ color = 1 ]
+        NOP -> STEP
+        
+        edge [ color = 2 ]
+        HALT -> POWER
+        
+        edge [ color = 3 ]
+        SWAP -> {
+            A -> B
+            B -> A
+        }
+        SWAP -> STEP
+        
+        edge [ color = 4 ]
+        NEXT -> ROTATEONE
+        NEXT -> {
+            LOCATION -> RAM -> A
+        }
+        NEXT -> STEP
+        
+        edge [ color = 5 ]
+        GET -> {
+            B -> RAM -> A
+        }
+        GET -> STEP
+        
+        edge [ color = 6 ]
+        SET -> {
+            { B; A } -> RAM
+        }
+        SET -> STEP
+        
+        edge [ color = 7 ]
+        OVERFLOW -> {
+            IFGOTO -> { B -> LOCATION }
+            IFGOTO -> GO
+        }
+        OVERFLOW -> {
+            IFGOTO -> STEP
+        }
+        
+        edge [ color = 8 ]
+        READIN -> {
+            IN -> A 
+        }
+        READIN -> STEP
+
+        edge [ color = 9 ]
+        SENDOUT -> {
+            A -> OUT
+        }
+        SENDOUT -> STEP
+
+        edge [ color = 10 ]
+        ADD -> {
+            { A; B } -> A
+        }
+        ADD -> OVERFLOW
+        ADD -> STEP
+
+        edge [ color = 11 ]
+        SUBTRACT -> {
+            { A; B } -> A
+        }
+        SUBTRACT -> OVERFLOW
+        SUBTRACT -> STEP
+    }
+}

@@ -1,0 +1,210 @@
+digraph ocm5Logic {
+    compound=true
+
+    edge [ decorate = true ]
+    node [
+        style = filled
+        colorscheme=dark28
+    ]
+    RAM [ fillcolor = 1 ]
+    node [ fillcolor = 2 ]
+    "<IN>"
+    "<OUT>"
+    node [ fillcolor = 3 ]
+    "[A]"
+    "[B]"
+    node [ fillcolor = 4 ]
+    subgraph "cluster@"{
+        label = "[@]"
+        "[@]" [ label = "n-ary Hex decoder" ]
+    }
+    subgraph "cluster#"{
+        label = "[#]"
+        "[#]" [ label = "Hex register" ]
+    }
+    node [ fillcolor = 5 ]
+    subgraph "clusterPOWER"{
+        label = "{POWER}"
+        powerLever [ label = Button ]
+        "{POWER}" [ label = "SR latch" ]
+        powerLever -> "{POWER}" [ label = S ]
+    }
+
+    subgraph "clusterOVERFLOW"{
+        label = "{OVERFLOW}"
+        "{OVERFLOW}" [ label = "SR latch" ]
+    }
+
+    subgraph "clusterGO"{
+        label = "{GO}"
+        "{GO}" [ label = OR ]
+    }
+    "{POWER}" -> "{GO}"
+    "{GO}" -> {
+        "[#]"
+        "[@]"
+    }
+    "[#]" -> RAM -> "[@]"
+    "{GO}" -> RAM
+
+    subgraph "clusterROTATEONE"{
+        label = "{ROTATEONE}"
+        "{ROTATEONE}"
+    }
+    "{ROTATEONE}" -> "[#]"
+
+    "{STEP}" -> { "{ROTATEONE}"; "{GO}" }
+    GO_counter -> "{STEP}" [ label = "3" ]
+    node [ fillcolor = 7 ]
+    subgraph "clusterClock"{
+        label = "CLOCK"
+        CLOCK [ label = "counter" ]
+        CLOCK_decoder [ label = "decoder" ]
+        CLOCK -> CLOCK_decoder
+        "{GO}" -> CLOCK [ label = R ]
+    }
+    node [ fillcolor = 6 ]
+    "[@]" -> NOP [ label = 0 ]
+    "[@]" -> HALT [ label = 1 ]
+    "[@]" -> SWAP [ label = 2 ]
+    "[@]" -> NEXT [ label = 3 ]
+    "[@]" -> GET [ label = 4 ]
+    "[@]" -> SET [ label = 5 ]
+    "[@]" -> IFGOTO [ label = 6 ]
+    "[@]" -> READIN [ label = 7 ]
+    "[@]" -> SENDOUT [ label = 8 ]
+    "[@]" -> ADD [ label = 9 ]
+    "[@]" -> SUBTRACT [ label = A ]
+
+    edge [colorscheme=paired12]
+    edge [ color = 1 ]
+    subgraph "clusterNOP" {
+        label = NOP
+        NOP [ label = "AND?" ]
+    }
+    NOP -> "{STEP}"
+    CLOCK_decoder -> NOP [ label = 0 ]
+    
+    edge [ color = 2 ]
+    HALT -> "{POWER}" [ label = "R" ]
+    
+    edge [ color = 3 ]
+    subgraph "clusterSWAP"{
+        label =  SWAP
+        SWAP [ label = OR ]
+        SWAP_tmp [ label = "[SWAP] regsiter" ]
+        SWAP_STEP1 [ label = AND ]
+        SWAP_STEP1_GATE1 [ label = "AND?" ]
+        SWAP_STEP1_GATE2 [ label = "AND?" ]
+        SWAP_STEP1_AND [ label = AND ]
+        SWAP_STEP2 [ label = AND ]
+        SWAP_STEP2_GATE1 [ label = "AND?" ]
+        SWAP_STEP3_GATE [ label = "AND?" ]
+        SWAP_STEP3_DECODE [ label = SUBTRACTOR ]
+    }
+    CLOCK_decoder -> SWAP_STEP1 [ label = 0 ]
+    CLOCK_decoder -> SWAP_STEP2 [ label = 1 ]
+    CLOCK_decoder -> SWAP_STEP3_GATE [ label = 2 ]
+    SWAP -> {
+        SWAP_STEP1; SWAP_STEP1_AND
+        SWAP_STEP2
+        SWAP_STEP3_GATE
+    }
+    SWAP_STEP1 -> {
+        SWAP_STEP1_GATE1
+        SWAP_STEP1_GATE2
+    }
+    "[A]" -> SWAP_STEP1_GATE1 -> SWAP_tmp -> SWAP_STEP1_AND
+    "[B]" -> SWAP_STEP1_GATE2 -> "[A]" -> SWAP_STEP1_AND
+    SWAP_STEP1_AND -> CLOCK [ label = I ] # TODO needs an SR latch
+    SWAP_STEP2 -> SWAP_STEP2_GATE1
+    SWAP_tmp -> SWAP_STEP2_GATE1 -> "[B]"
+    "[B]" -> CLOCK [ label = I ]
+    SWAP_STEP3_GATE -> SWAP_STEP3_DECODE
+    SWAP_STEP3_DECODE -> "{STEP}"
+    "{STEP}" -> CLOCK [ label = I ]
+    
+    edge [ color = 4 ]
+    subgraph "clusterNEXT"{
+        label = NEXT
+        NEXT [ label = OR ]
+        NEXT_STEP1_GATE [ label = "AND?" ]
+        NEXT_STEP2 [ label = AND ]
+        NEXT_STEP2_GATE [ label = "AND?" ]
+        NEXT_STEP3 [ label = AND ]
+        NEXT_STEP3_GATE [ label = "AND?" ]
+        NEXT_STEP4_GATE [ label = "AND?" ]
+        NEXT_STEP4_DECODE [ label = SUBTRACTOR ]
+    }
+    CLOCK_decoder -> NEXT_STEP1_GATE [ label = 0 ]
+    CLOCK_decoder -> NEXT_STEP2 [ label = 1 ]
+    CLOCK_decoder -> NEXT_STEP3 [ label = 2 ]
+    CLOCK_decoder -> NEXT_STEP4_GATE [ label = 3 ]
+    NEXT -> {
+        NEXT_STEP1_GATE
+        NEXT_STEP2
+        NEXT_STEP3
+        NEXT_STEP4_GATE
+    }
+    NEXT_STEP1_GATE -> "{ROTATEONE}"
+    "{ROTATEONE}" -> CLOCK [ label = I ]
+    NEXT_STEP2 -> NEXT_STEP2_GATE
+    "[#]" -> NEXT_STEP2_GATE -> RAM
+    RAM -> CLOCK [ label = I ]
+    NEXT_STEP3 -> NEXT_STEP3_GATE
+    RAM -> NEXT_STEP3_GATE -> "[A]"
+    "[A]" -> CLOCK [ label = I ]
+    NEXT_STEP4_GATE -> NEXT_STEP4_DECODE
+    NEXT_STEP4_DECODE -> "{STEP}"
+    "{STEP}" -> CLOCK [ label = I ]
+    
+    edge [ color = 5 ]
+    GET -> {
+        "[B]" -> RAM -> "[A]"
+    }
+    GET -> "{STEP}"
+    
+    edge [ color = 6 ]
+    SET -> {
+        { "[B]"; "[A]" } -> RAM
+    }
+    SET -> "{STEP}"
+    
+    edge [ color = 7 ]
+    "{OVERFLOW}" -> {
+        IFGOTO -> { "[B]" -> "[#]" }
+        IFGOTO -> "{GO}"
+    }
+    GO_counter -> IFGOTO [ label = "3" ]
+    "{OVERFLOW}" -> {
+        IFGOTO -> "{STEP}"
+    }
+    
+    edge [ color = 8 ]
+    READIN -> {
+        "<IN>" -> "[A]" 
+    }
+    READIN -> STEP
+
+    edge [ color = 9 ]
+    SENDOUT -> {
+        "[A]" -> "<OUT>"
+    }
+    SENDOUT -> STEP
+
+    edge [ color = 10 ]
+    ADD -> {
+        { "[A]"; "[B]" } -> "[A]"
+    }
+    ADD -> "{OVERFLOW}" [ label = S ]
+    ADD -> "{OVERFLOW}" [ label = R ]
+    ADD -> STEP
+
+    edge [ color = 11 ]
+    SUBTRACT -> {
+        { "[A]"; "[B]" } -> "[A]"
+    }
+    SUBTRACT -> "{OVERFLOW}" [ label = S ]
+    SUBTRACT -> "{OVERFLOW}" [ label = R ]
+    SUBTRACT -> STEP
+}
