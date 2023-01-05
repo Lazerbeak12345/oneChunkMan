@@ -5,27 +5,6 @@
 (module+ test
   (require rackunit))
 (provide #%datum)
-(define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr nl)
-  (ocm-asm-row-helper (list label-list ...) data))
-#;(define-type Unclean-Row
-               (-> (U (Exact-Nonnegative-Integer -> (-> Exact-Nonnegative-Integer)) Void)))
-(define (ocm-asm-row-helper label-list data)
-  (define remaining-data (void))
-  ; Call to get next lambda, or void
-  (thunk (if (null? remaining-data)
-             (void)
-             (let ([first (void? remaining-data)])
-               (when first
-                 (set! remaining-data (data)))
-               ; We have to cast it after setting it for the first time
-               (define old-car (car remaining-data))
-               (set! remaining-data (cdr remaining-data))
-               ; Call to get value
-               (lambda (location)
-                 (when first
-                   (for ([label label-list])
-                     (label location)))
-                 old-car)))))
 (provide ocm-asm-row)
 (define-syntax-parse-rule (ocm-asm-dta pound dta:nat)
   (thunk (list (thunk dta))))
@@ -66,6 +45,27 @@
        #'(thunk (if (should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
+(define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr nl)
+  (ocm-asm-row-helper (list label-list ...) data))
+#;(define-type Unclean-Row
+               (-> (U (Exact-Nonnegative-Integer -> (-> Exact-Nonnegative-Integer)) Void)))
+(define (ocm-asm-row-helper label-list data)
+  (define remaining-data (void))
+  ; Call to get next lambda, or void
+  (thunk (if (null? remaining-data)
+             (void)
+             (let ([first (void? remaining-data)])
+               (when first
+                 (set! remaining-data (data)))
+               ; We have to cast it after setting it for the first time
+               (define old-car (car remaining-data))
+               (set! remaining-data (cdr remaining-data))
+               ; Call to get value
+               (lambda (location)
+                 (when first
+                   (for ([label label-list])
+                     (label location)))
+                 old-car)))))
 ; TODO this code sucks. Figure out how it works and recreate it using only
 ; macros. Real macros. No thunks.
 (define (call-the-rows-or-smth-idk-i-didnt-document-this-code rows)
