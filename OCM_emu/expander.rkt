@@ -66,6 +66,9 @@
                    (for ([label label-list])
                      (label location)))
                  old-car)))))
+; - First call each row.
+; - Then call the lambdas for each rows
+; - Then call the lambda for each word in memory
 ; TODO this code sucks. Figure out how it works and recreate it using only
 ; macros. Real macros. No thunks.
 (define (call-the-rows-or-smth-idk-i-didnt-document-this-code rows)
@@ -75,14 +78,14 @@
              ; For that matter, I have no idea what this code does
              ; anymore. Why? Just Why?
              (if row
-             (let ([word-thunks (let next-row ([return-val '()])
-                                  (let ([row-result (row)])
-                                    (if (void? row-result)
-                                      return-val
-                                      (next-row (cons row-result return-val)))))])
-               (reverse word-thunks))
-             '())
-             ))
+               (let ([word-thunks
+                       (let next-row ([return-val '()])
+                         (let ([row-result (row)])
+                           (if (void? row-result)
+                             return-val
+                             (next-row (cons row-result return-val)))))])
+                 (reverse word-thunks))
+               '())))
   ; Each contains multiple words of memory, each word bundled within a thunk.
   (apply append memory-chunks))
 ;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
@@ -178,6 +181,10 @@
    "Test clean-rows execution order"
    (let ([order '()])
      (parameterize ([BITTAGE 6])
+                                             ; - First call each row.
+                                      ; - Then call the lambdas for each rows
+                                                   ; - Then call the lambda for
+                                                   ; each word in memory
        (clean-rows (list (ocm-asm-row (thunk (set! order (append order '(0)))
                                              (list (thunk (set! order (append order '(7))) 50)
                                                    (thunk (set! order (append order '(8))) 33)))
