@@ -72,18 +72,14 @@
 ; TODO this code sucks. Figure out how it works and recreate it using only
 ; macros. Real macros. No thunks.
 (define (call-the-rows-or-smth-idk-i-didnt-document-this-code rows)
+  (define (next-row row return-val)
+    (define row-result (row))
+    (if (void? row-result)
+      return-val
+      (next-row row (cons row-result return-val))))
   (define memory-chunks
     (for/list ([row rows])
-             ; We don't know how long each row is.
-             ; For that matter, I have no idea what this code does
-             ; anymore. Why? Just Why?
-             (define (next-row return-val)
-               (define row-result (row))
-               (if (void? row-result)
-                 return-val
-                 (next-row (cons row-result return-val))))
-             (define word-thunks (next-row '()))
-             (reverse word-thunks)))
+      (reverse (next-row row '()))))
   ; Each contains multiple words of memory, each word bundled within a thunk.
   (apply append memory-chunks))
 ;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
