@@ -77,15 +77,13 @@
              ; We don't know how long each row is.
              ; For that matter, I have no idea what this code does
              ; anymore. Why? Just Why?
-             (if row
-               (let ([word-thunks
-                       (let next-row ([return-val '()])
-                         (let ([row-result (row)])
-                           (if (void? row-result)
-                             return-val
-                             (next-row (cons row-result return-val)))))])
-                 (reverse word-thunks))
-               '())))
+             (let ([word-thunks
+                     (let next-row ([return-val '()])
+                       (let ([row-result (row)])
+                         (if (void? row-result)
+                           return-val
+                           (next-row (cons row-result return-val)))))])
+               (reverse word-thunks))))
   ; Each contains multiple words of memory, each word bundled within a thunk.
   (apply append memory-chunks))
 ;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
@@ -111,6 +109,16 @@
     (when (number . > . max-int)
       (raise-user-error (format "The item at ~a in memory is too large" index) number))
     number))
+; Remove all #f from the list of rows.
+(define-for-syntax (clean-rows-remove-comments rows)
+                   (datum->syntax rows (filter (lambda (val) (not (equal? #f
+                                                                          (syntax->datum
+                                                                            val))))
+                                               (syntax->list rows))))
+(define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
+    (syntax-case syntax-object ()
+      ((_ a ...)
+       #`(list #,@(clean-rows-remove-comments #'(a ...))))))
 (module+ test
   (test-equal? "Test ocm-asm-inst"
                (for/list ([item ((ocm-asm-inst #f NEXT))])
@@ -247,6 +255,8 @@
                                " run\n"
                                "\tr\n"))]
     [else (raise-user-error (format "`~a` is an invalid command. try `help`" command))]))
-(define-syntax-parse-rule (ocm-asm items:expr ...)
-  (ocm-asm-main (list items ...)))
+(define-syntax (ocm-asm syntax-object)
+    (syntax-case syntax-object ()
+      ((_ items ...)
+       #'(ocm-asm-main (better-clean-rows items ...)))))
 (provide ocm-asm)
