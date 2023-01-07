@@ -77,13 +77,13 @@
              ; We don't know how long each row is.
              ; For that matter, I have no idea what this code does
              ; anymore. Why? Just Why?
-             (let ([word-thunks
-                     (let next-row ([return-val '()])
-                       (let ([row-result (row)])
-                         (if (void? row-result)
-                           return-val
-                           (next-row (cons row-result return-val)))))])
-               (reverse word-thunks))))
+             (define (next-row return-val)
+               (define row-result (row))
+               (if (void? row-result)
+                 return-val
+                 (next-row (cons row-result return-val))))
+             (define word-thunks (next-row '()))
+             (reverse word-thunks)))
   ; Each contains multiple words of memory, each word bundled within a thunk.
   (apply append memory-chunks))
 ;(: clean-rows : Unclean-Rows -> (Listof Exact-Nonnegative-Integer))
