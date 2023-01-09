@@ -174,7 +174,7 @@
       (thunk num)))
   (test-equal?
    "Test ocm-asm-row"
-   (let ([get-item (ocm-asm-row (lambda _ (void)) (lambda _ (void)) (wrap-nums '(31 3 5 9 13)) #f)])
+   (let ([get-item (ocm-asm-row (lambda _ (void)) (lambda _ (void)) (wrap-nums '(31 3 5 9 13)))])
      (apply-over-list
       (reverse
        (let loop ([item (get-item)] [index 0] [items '()])
@@ -185,7 +185,7 @@
    (parameterize ([BITTAGE 8] [labels (make-hash)])
      (check-equal?
       (let ([get-item
-             (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF") #f)])
+             (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF"))])
         (apply-over-list
          (reverse
           (let loop ([item (get-item)] [index 0] [items '()])
@@ -203,33 +203,29 @@
                                                    ; each word in memory
        (clean-rows (list (ocm-asm-row (thunk (set! order (append order '(0)))
                                              (list (thunk (set! order (append order '(7))) 50)
-                                                   (thunk (set! order (append order '(8))) 33)))
-                                      #f)
+                                                   (thunk (set! order (append order '(8))) 33))))
                          (ocm-asm-row (thunk (set! order (append order '(1)))
                                              (list (thunk (set! order (append order '(9))) 30)
-                                                   (thunk (set! order (append order '(10))) 32)))
-                                      #f)
+                                                   (thunk (set! order (append order '(10))) 32))))
                          (ocm-asm-row (lambda _ (set! order (append order '(4))))
                                       (thunk (set! order (append order '(2)))
                                              (list (thunk (set! order (append order '(11))) 31)
-                                                   (thunk (set! order (append order '(12))) 21)))
-                                      #f)
+                                                   (thunk (set! order (append order '(12))) 21))))
                          (ocm-asm-row (lambda _ (set! order (append order '(5))))
                                       (lambda _ (set! order (append order '(6))))
                                       (thunk (set! order (append order '(3)))
                                              (list (thunk (set! order (append order '(13))) 33)
-                                                   (thunk (set! order (append order '(14))) 32)))
-                                      #f))))
+                                                   (thunk (set! order (append order '(14))) 32)))))))
      order)
    (range 15))
   (test-case
    "Test clean-rows"
    (parameterize ([labels (make-hash)] [BITTAGE 6])
      (check-equal?
-      (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT) #f)
-                        (ocm-asm-row (ocm-asm-ref #f after-string) #f)
-                        (ocm-asm-row (ocm-asm-label #f begin-string) (ocm-asm-str "ASDF") #f)
-                        (ocm-asm-row (ocm-asm-label #f after-string) (ocm-asm-inst #f SWAP) #f)))
+      (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT))
+                        (ocm-asm-row (ocm-asm-ref #f after-string))
+                        (ocm-asm-row (ocm-asm-label #f begin-string) (ocm-asm-str "ASDF"))
+                        (ocm-asm-row (ocm-asm-label #f after-string) (ocm-asm-inst #f SWAP))))
       '(3 7 31 3 5 9 13 2)
       "return")
      (check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
