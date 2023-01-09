@@ -107,27 +107,26 @@
     number))
 (define-for-syntax (resolve-row-data rows)
                    ;(printf "before resolve-row-data:\n\t~a\n" rows)
-                   (define out
-                     (datum->syntax rows (map (lambda (row)
-                                                ;(printf "  row:\t~a\n" row)
-                                                 (syntax-case row ()
-                                                   [(ocm-asm-row labels ... data _)
-                                                     #'(ocm-asm-row labels ... data)]))
-                                              (syntax->list rows))))
-                   ;(printf "after resolve-row-data:\n\t~a\n" out)
-                   out)
+                   ;(define out
+                   (map (lambda (row)
+                          (syntax-case row ()
+                            [(ocm-asm-row labels ... data _)
+                             #'(ocm-asm-row labels ... data)]))
+                        rows))
+                   ;(printf "after resolve-row-data:\n\t~a\n" out) out)
 ; Remove all #f from the list of rows.
 (define-for-syntax (clean-rows-remove-comments rows)
                    ;(define a
-                   (datum->syntax rows (filter (lambda (val) (not (equal? #f
-                                                                          (syntax->datum
-                                                                            val))))
-                                               (syntax->list rows))))
+                   (filter (lambda (val) (not (equal? #f (syntax->datum val))))
+                           rows))
                    ;(displayln a) a)
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
     (syntax-case syntax-object ()
       ((_ a ...)
-       #`(list #,@(resolve-row-data (clean-rows-remove-comments #'(a ...)))))))
+       #`(list #,@(let ([rows #'(a ...)])
+                    (datum->syntax rows (resolve-row-data
+                                          (clean-rows-remove-comments
+                                            (syntax->list rows)))))))))
 (module+ test
   (test-equal? "Test ocm-asm-inst"
                (for/list ([item ((ocm-asm-inst #f NEXT))])
