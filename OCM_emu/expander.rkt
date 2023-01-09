@@ -45,10 +45,13 @@
        #'(thunk (if (should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
-(define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr nl)
+(define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr)
   (ocm-asm-row-helper (list label-list ...) data))
 #;(define-type Unclean-Row
                (-> (U (Exact-Nonnegative-Integer -> (-> Exact-Nonnegative-Integer)) Void)))
+; - First call each row. -- Calling `data` here
+; - Then call the lambdas for each rows
+; - Then call the lambda for each word in memory
 (define (ocm-asm-row-helper label-list data)
   (define remaining-data (void))
   ; Call to get next lambda, or void
@@ -66,9 +69,6 @@
                    (for ([label label-list])
                      (label location)))
                  old-car)))))
-; - First call each row.
-; - Then call the lambdas for each rows
-; - Then call the lambda for each word in memory
 ; TODO this code sucks. Figure out how it works and recreate it using only
 ; macros. Real macros. No thunks.
 (define (call-the-rows-or-smth-idk-i-didnt-document-this-code rows)
@@ -105,16 +105,29 @@
     (when (number . > . max-int)
       (raise-user-error (format "The item at ~a in memory is too large" index) number))
     number))
+(define-for-syntax (resolve-row-data rows)
+                   ;(printf "before resolve-row-data:\n\t~a\n" rows)
+                   (define out
+                     (datum->syntax rows (map (lambda (row)
+                                                ;(printf "  row:\t~a\n" row)
+                                                 (syntax-case row ()
+                                                   [(ocm-asm-row labels ... data _)
+                                                     #'(ocm-asm-row labels ... data)]))
+                                              (syntax->list rows))))
+                   ;(printf "after resolve-row-data:\n\t~a\n" out)
+                   out)
 ; Remove all #f from the list of rows.
 (define-for-syntax (clean-rows-remove-comments rows)
+                   ;(define a
                    (datum->syntax rows (filter (lambda (val) (not (equal? #f
                                                                           (syntax->datum
                                                                             val))))
                                                (syntax->list rows))))
+                   ;(displayln a) a)
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
     (syntax-case syntax-object ()
       ((_ a ...)
-       #`(list #,@(clean-rows-remove-comments #'(a ...))))))
+       #`(list #,@(resolve-row-data (clean-rows-remove-comments #'(a ...)))))))
 (module+ test
   (test-equal? "Test ocm-asm-inst"
                (for/list ([item ((ocm-asm-inst #f NEXT))])
