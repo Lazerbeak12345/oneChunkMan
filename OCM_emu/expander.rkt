@@ -1,6 +1,13 @@
 #lang racket
 (require syntax/parse/define
-         (only-in "runtime.rkt" ocm-asm-main-memorydump ocm-asm-main-run run-ocm-asm BITTAGE RAM_SIZE MAX_INT debugger-port)
+         (only-in "runtime.rkt"
+                  ocm-asm-main-memorydump
+                  ocm-asm-main-run
+                  run-ocm-asm
+                  BITTAGE
+                  RAM_SIZE
+                  MAX_INT
+                  debugger-port)
          (for-syntax (only-in "runtime.rkt" symbol->num) (only-in "encodings.rkt" encode-ITA_2)))
 (module+ test
   (require rackunit))
@@ -74,9 +81,7 @@
 (define (call-the-rows-or-smth-idk-i-didnt-document-this-code rows)
   (define (next-row row return-val)
     (define row-result (row))
-    (if (void? row-result)
-      return-val
-      (next-row row (cons row-result return-val))))
+    (if (void? row-result) return-val (next-row row (cons row-result return-val))))
   (define memory-chunks
     (for/list ([row rows])
       (reverse (next-row row '()))))
@@ -89,9 +94,9 @@
   (define len (length theItems))
   (let ([ram-size ((RAM_SIZE))])
     (when (len . > . ram-size)
-      (raise-user-error (format (string-join "Max program length is ~a. The "
-                                             "provided program is too long. "
-                                             "was") ram-size) len)))
+      (raise-user-error
+       (format "Max program length is ~a. The provided program is too long. was" ram-size)
+       len)))
   (define max-int ((MAX_INT)))
   (define range-len (range len))
   (for/list ([item-func (for/list ([item theItems] [index range-len])
@@ -106,27 +111,25 @@
       (raise-user-error (format "The item at ~a in memory is too large" index) number))
     number))
 (define-for-syntax (resolve-row-data rows)
-                   ;(printf "before resolve-row-data:\n\t~a\n" rows)
-                   ;(define out
-                   (map (lambda (row)
-                          (syntax-case row ()
-                            [(ocm-asm-row labels ... data _)
-                             #'(ocm-asm-row labels ... data)]))
-                        rows))
-                   ;(printf "after resolve-row-data:\n\t~a\n" out) out)
+  ;(printf "before resolve-row-data:\n\t~a\n" rows)
+  ;(define out
+  (map (lambda (row)
+         (syntax-case row ()
+           [(ocm-asm-row labels ... data _) #'(ocm-asm-row labels ... data)]))
+       rows))
+;(printf "after resolve-row-data:\n\t~a\n" out) out)
 ; Remove all #f from the list of rows.
 (define-for-syntax (clean-rows-remove-comments rows)
-                   ;(define a
-                   (filter (lambda (val) (not (equal? #f (syntax->datum val))))
-                           rows))
-                   ;(displayln a) a)
+  ;(define a
+  (filter (lambda (val) (not (equal? #f (syntax->datum val)))) rows))
+;(displayln a) a)
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
-    (syntax-case syntax-object ()
-      ((_ a ...)
-       #`(list #,@(let ([rows #'(a ...)])
-                    (datum->syntax rows (resolve-row-data
-                                          (clean-rows-remove-comments
-                                            (syntax->list rows)))))))))
+  (syntax-case syntax-object ()
+    [(_ a ...)
+     #`(list #,@(let ([rows #'(a ...)])
+                  (datum->syntax rows
+                                 (resolve-row-data (clean-rows-remove-comments
+                                                    (syntax->list rows))))))]))
 (module+ test
   (test-equal? "Test ocm-asm-inst"
                (for/list ([item ((ocm-asm-inst #f NEXT))])
@@ -197,10 +200,10 @@
    "Test clean-rows execution order"
    (let ([order '()])
      (parameterize ([BITTAGE 6])
-                                             ; - First call each row.
-                                      ; - Then call the lambdas for each rows
-                                                   ; - Then call the lambda for
-                                                   ; each word in memory
+       ; - First call each row.
+       ; - Then call the lambdas for each rows
+       ; - Then call the lambda for
+       ; each word in memory
        (clean-rows (list (ocm-asm-row (thunk (set! order (append order '(0)))
                                              (list (thunk (set! order (append order '(7))) 50)
                                                    (thunk (set! order (append order '(8))) 33))))
@@ -260,7 +263,6 @@
                                "\tr\n"))]
     [else (raise-user-error (format "`~a` is an invalid command. try `help`" command))]))
 (define-syntax (ocm-asm syntax-object)
-    (syntax-case syntax-object ()
-      ((_ items ...)
-       #'(ocm-asm-main (better-clean-rows items ...)))))
+  (syntax-case syntax-object ()
+    [(_ items ...) #'(ocm-asm-main (better-clean-rows items ...))]))
 (provide ocm-asm)
