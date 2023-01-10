@@ -1,4 +1,6 @@
-#lang racket
+#lang debug racket
+; use #R for #lang debug
+(require (for-syntax debug/repl))
 (require syntax/parse/define
          (only-in "runtime.rkt"
                   ocm-asm-main-memorydump
@@ -8,7 +10,9 @@
                   RAM_SIZE
                   MAX_INT
                   debugger-port)
-         (for-syntax (only-in "runtime.rkt" symbol->num) (only-in "encodings.rkt" encode-ITA_2)))
+         (for-syntax (only-in "runtime.rkt" symbol->num)
+                     (only-in "encodings.rkt" encode-ITA_2)
+                     (only-in debug/repl debug-repl)))
 (module+ test
   (require rackunit))
 (provide #%datum)
