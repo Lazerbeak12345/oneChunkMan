@@ -243,7 +243,8 @@
   (define commandName (string-append (path->string (find-system-path 'run-file)) " " command))
   (case command
     [("run" "r") (ocm-asm-main-run commandName args unicode-actualItems ita2-actualItems)]
-    [("memorydump" "dump" "md" "d") (ocm-asm-main-memorydump commandName args unicode-actualItems ita2-actualItems)]
+    [("memorydump" "dump" "md" "d")
+     (ocm-asm-main-memorydump commandName args unicode-actualItems ita2-actualItems)]
     [("help" "h" "?" "-h" "--help")
      ; TODO make this work
      (displayln (string-append "Try running the `run` or `memorydump`"
@@ -265,6 +266,6 @@
     [else (raise-user-error (format "`~a` is an invalid command. try `help`" command))]))
 (define-syntax (ocm-asm syntax-object)
   (syntax-case syntax-object ()
-    [(_ items ...) #'(ocm-asm-main (better-clean-rows #t items ...)
-                                   (better-clean-rows #f items ...))]))
+    [(_ items ...)
+     #'(ocm-asm-main (better-clean-rows #t items ...) (better-clean-rows #f items ...))]))
 (provide ocm-asm)
