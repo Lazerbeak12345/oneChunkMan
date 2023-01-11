@@ -281,14 +281,19 @@
   )
 ; TODO this will need to be redone later. Move to diffferent file? IDK.
 
+(: should-use-ita? : -> Boolean)
+(define (should-use-ita?)
+  ((BITTAGE) . < . 7))
+(provide should-use-ita?)
 (: ocm-asm-main-run
    :
    String
    (Mutable-Vectorof String)
    (-> (Listof Exact-Nonnegative-Integer))
+   (-> (Listof Exact-Nonnegative-Integer))
    ->
    Void)
-(define (ocm-asm-main-run commandName args actualItems)
+(define (ocm-asm-main-run commandName args unicode-actualItems ita2-actualItems)
   (define new-bittage
     :
     Exact-Nonnegative-Integer
@@ -305,7 +310,10 @@
     '("Set the bittage of the emulator" "the bittage")]
    [("-v" "--verbose") "Send debug output to stderr" (set! new-dbg-port (current-error-port))])
   (parameterize ([BITTAGE new-bittage] [debugger-port new-dbg-port])
-    (run-ocm-asm #:numbers (cast (list->vector (actualItems))
+    (run-ocm-asm #:numbers (cast (list->vector
+                                   (if (should-use-ita?)
+                                     (ita2-actualItems)
+                                     (unicode-actualItems)))
                                  (Mutable-Vectorof Exact-Nonnegative-Integer))))
   ; Prevents printing when we don't need to
   (void))
@@ -315,9 +323,10 @@
    String
    (Mutable-Vectorof String)
    (-> (Listof Exact-Nonnegative-Integer))
+   (-> (Listof Exact-Nonnegative-Integer))
    ->
    Void)
-(define (ocm-asm-main-memorydump commandName args actualItems)
+(define (ocm-asm-main-memorydump commandName args unicode-actualItems ita2-actualItems)
   (define big-endian
     :
     Boolean
@@ -346,7 +355,9 @@
   (define numbers
     :
     (Listof Exact-Nonnegative-Integer)
-    (parameterize ([BITTAGE new-bittage]) (actualItems)))
+    (parameterize ([BITTAGE new-bittage]) (if (should-use-ita?)
+                                            (ita2-actualItems)
+                                            (unicode-actualItems))))
   (displayln
    (string-join
     (match mode

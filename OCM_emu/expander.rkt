@@ -8,6 +8,7 @@
                   BITTAGE
                   RAM_SIZE
                   MAX_INT
+                  should-use-ita?
                   debugger-port)
          (for-syntax (only-in "runtime.rkt" symbol->num)
                      (only-in "encodings.rkt" encode-ITA_2)
@@ -37,8 +38,6 @@
 (define-syntax-parse-rule (ocm-asm-label atsign name:id nl ...)
   (lambda (line-no) (hash-set! (labels) 'name line-no)))
 (provide ocm-asm-label)
-(define (should-use-ita?)
-  ((BITTAGE) . < . 7))
 (define-for-syntax (wrap-list-in-thunks l)
   (for/list ([num l])
     #`(thunk #,num)))
@@ -128,7 +127,7 @@
 ;(displayln a) a)
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
   (syntax-case syntax-object ()
-    [(_ a ...)
+    [(_ unicode a ...)
      #`(list #,@(let ([rows #'(a ...)])
                   (datum->syntax rows
                                  (resolve-row-data (clean-rows-remove-comments
@@ -236,16 +235,17 @@
       "return")
      (check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
 ;(: ocm-asm-main : Unclean-Rows -> Void)
-(define (ocm-asm-main items)
+(define (ocm-asm-main unicode-items ita2-items)
   (define pre-args
     (let ([a (current-command-line-arguments)]) (if ((vector-length a) . = . 0) '#("help") a)))
   (define command (vector-ref pre-args 0))
   (define args (vector-drop pre-args 1))
-  (define actualItems (thunk (clean-rows items)))
+  (define unicode-actualItems (thunk (clean-rows unicode-items)))
+  (define ita2-actualItems (thunk (clean-rows ita2-items)))
   (define commandName (string-append (path->string (find-system-path 'run-file)) " " command))
   (case command
-    [("run" "r") (ocm-asm-main-run commandName args actualItems)]
-    [("memorydump" "dump" "md" "d") (ocm-asm-main-memorydump commandName args actualItems)]
+    [("run" "r") (ocm-asm-main-run commandName args unicode-actualItems ita2-actualItems)]
+    [("memorydump" "dump" "md" "d") (ocm-asm-main-memorydump commandName args unicode-actualItems ita2-actualItems)]
     [("help" "h" "?" "-h" "--help")
      ; TODO make this work
      (displayln (string-append "Try running the `run` or `memorydump`"
@@ -267,5 +267,6 @@
     [else (raise-user-error (format "`~a` is an invalid command. try `help`" command))]))
 (define-syntax (ocm-asm syntax-object)
   (syntax-case syntax-object ()
-    [(_ items ...) #'(ocm-asm-main (better-clean-rows items ...))]))
+    [(_ items ...) #'(ocm-asm-main (better-clean-rows #t items ...)
+                                   (better-clean-rows #f items ...))]))
 (provide ocm-asm)
