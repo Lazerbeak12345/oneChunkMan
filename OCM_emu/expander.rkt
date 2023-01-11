@@ -1,6 +1,5 @@
 #lang debug racket
 ; use #R for #lang debug
-(require (for-syntax debug/repl))
 (require syntax/parse/define
          (only-in "runtime.rkt"
                   ocm-asm-main-memorydump
