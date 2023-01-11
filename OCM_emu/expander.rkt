@@ -4,15 +4,13 @@
          (only-in "runtime.rkt"
                   ocm-asm-main-memorydump
                   ocm-asm-main-run
-                  run-ocm-asm
                   BITTAGE
                   RAM_SIZE
                   MAX_INT
-                  should-use-ita?
-                  debugger-port)
+                  should-use-ita?)
          (for-syntax (only-in "runtime.rkt" symbol->num)
                      (only-in "encodings.rkt" encode-ITA_2)
-                     (only-in debug/repl debug-repl)))
+                     #;(only-in debug/repl debug-repl)))
 (module+ test
   (require rackunit))
 (provide #%datum)
