@@ -18,13 +18,14 @@
 (define-syntax-parse-rule (ocm-asm-dta pound dta:nat)
   (thunk (list (thunk dta))))
 (provide ocm-asm-dta)
+(define-for-syntax (ocm-asm-inst-fun inst)
+  (with-syntax ([num (datum->syntax inst
+                                    (symbol->num (string->symbol
+                                                  (symbol->string (syntax->datum inst)))))])
+    #'(ocm-asm-dta #f num)))
 (define-syntax (ocm-asm-inst stx)
   (syntax-case stx ()
-    [[_ colon inst]
-     (with-syntax ([num (datum->syntax #'inst
-                                       (symbol->num (string->symbol
-                                                     (symbol->string (syntax->datum #'inst)))))])
-       #'(ocm-asm-dta #f num))]))
+    [[_ colon inst] (ocm-asm-inst-fun #'inst)]))
 (provide ocm-asm-inst)
 (define-syntax-parse-rule (ocm-asm-mb parse-tree:expr)
   (#%module-begin parse-tree))
@@ -110,19 +111,19 @@
     (when (number . > . max-int)
       (raise-user-error (format "The item at ~a in memory is too large" index) number))
     number))
+(define-for-syntax (resolve-row-data-funs data)
+  (syntax-case data (ocm-asm-inst)
+    [(ocm-asm-inst colon inst) (ocm-asm-inst-fun #'inst)]
+    [else #'else]))
 (define-for-syntax (resolve-row-data rows)
-  ;(printf "before resolve-row-data:\n\t~a\n" rows)
-  ;(define out
   (map (lambda (row)
          (syntax-case row ()
-           [(ocm-asm-row labels ... data _) #'(ocm-asm-row labels ... data)]))
+           [(ocm-asm-row labels ... data _)
+            #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
        rows))
-;(printf "after resolve-row-data:\n\t~a\n" out) out)
 ; Remove all #f from the list of rows.
 (define-for-syntax (clean-rows-remove-comments rows)
-  ;(define a
   (filter (lambda (val) (not (equal? #f (syntax->datum val)))) rows))
-;(displayln a) a)
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
   (syntax-case syntax-object ()
     [(_ unicode a ...)
