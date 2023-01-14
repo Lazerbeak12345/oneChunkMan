@@ -38,22 +38,26 @@
 (define-for-syntax (wrap-list-in-thunks l)
   (for/list ([num l])
     #`(thunk #,num)))
-(define-syntax (ocm-asm-str stx)
-  (syntax-case stx ()
-    [(_ data)
-     (with-syntax ([ITA_2-encoding (qi:~>> (#'data)
+(define-for-syntax (ocm-asm-str-ita2 data)
+                   (qi:~>> (data)
                                            syntax->datum
                                            encode:encode-ITA_2
                                            wrap-list-in-thunks
-                                           (datum->syntax #'data))]
-                   [UTF8?-encoding (qi:~>> (#'data)
+                                           (datum->syntax data)))
+(define-for-syntax (ocm-asm-str-utf8 data)
+                   (qi:~>> (data)
                                            syntax->datum
                                            string->list
                                            sep
                                            (>< char->integer)
                                            collect
                                            wrap-list-in-thunks
-                                           (datum->syntax #'data))])
+                                           (datum->syntax data)))
+(define-syntax (ocm-asm-str stx)
+  (syntax-case stx ()
+    [(_ data)
+     (with-syntax ([ITA_2-encoding (ocm-asm-str-ita2 #'data)]
+                   [UTF8?-encoding (ocm-asm-str-utf8 #'data)])
        #'(thunk (if (runtime:should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
@@ -119,9 +123,6 @@
   (syntax-case data (ocm-asm-inst)
     [(ocm-asm-inst colon inst) (ocm-asm-inst-fun #'inst)]
     [else #'else]))
-; 1. Evaluate all expandables (strings, others)
-; 2. Evaluate all labels values
-; 3. Evaluate all reference values
 (define-for-syntax (resolve-row-data rows)
   (map (lambda (row)
          (syntax-case row ()
@@ -131,13 +132,32 @@
 ; Remove all #f from the list of rows.
 (define-for-syntax clean-rows-remove-comments
   (qi:flow (~> sep (pass (~> syntax->datum (not (equal? #f)))) collect)))
+; Evaluate all expandables (strings, others)
+(define-for-syntax (evaluate-expandables unicode rows)
+  (map (lambda (row)
+         (syntax-case row (ocm-asm-str ocm-asm-row)
+           [(ocm-asm-row labels ... (ocm-asm-str data))
+            #`(ocm-asm-row labels ...
+                           (thunk (list #,@(if unicode
+                             (ocm-asm-str-utf8 #'data)
+                             (ocm-asm-str-ita2 #'data)))))]
+           [else #'else]))
+       rows))
+; Evaluate all labels values
+(define-for-syntax (evaluate-labels rows) rows)
+; Evaluate all reference values
+(define-for-syntax (evaluate-values rows) rows)
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
   (syntax-case syntax-object ()
     [(_ unicode a ...)
-     #`(list #,@(let ([rows #'(a ...)])
+     #`(list #,@(let ([rows #'(a ...)]
+                      [is-unicode (syntax->datum #'unicode)])
                   (qi:~>> (rows)
                           syntax->list
                           clean-rows-remove-comments
+                          (evaluate-expandables is-unicode)
+                          evaluate-labels
+                          evaluate-values
                           resolve-row-data
                           ; Needs the original context when going back to syntax.
                           (datum->syntax rows))))]))
