@@ -8,7 +8,8 @@
                   RAM_SIZE
                   MAX_INT
                   should-use-ita?)
-         (for-syntax (only-in "runtime.rkt" symbol->num)
+         (for-syntax qi
+                     (only-in "runtime.rkt" symbol->num)
                      (only-in "encodings.rkt" encode-ITA_2)
                      #;(only-in debug/repl debug-repl)))
 (module+ test
@@ -19,9 +20,9 @@
   (thunk (list (thunk dta))))
 (provide ocm-asm-dta)
 (define-for-syntax (ocm-asm-inst-fun inst)
-  (with-syntax ([num (datum->syntax inst
-                                    (symbol->num (string->symbol
-                                                  (symbol->string (syntax->datum inst)))))])
+  (with-syntax
+      ([num
+        (~>> (inst) syntax->datum symbol->string string->symbol symbol->num (datum->syntax inst))])
     #'(ocm-asm-dta #f num)))
 (define-syntax (ocm-asm-inst stx)
   (syntax-case stx ()
@@ -43,13 +44,17 @@
 (define-syntax (ocm-asm-str stx)
   (syntax-case stx ()
     [(_ data)
-     (with-syntax ([ITA_2-encoding (datum->syntax #'data
-                                                  (wrap-list-in-thunks
-                                                   (encode-ITA_2 (syntax->datum #'data))))]
-                   [UTF8?-encoding
-                    (datum->syntax #'data
-                                   (wrap-list-in-thunks
-                                    (map char->integer (string->list (syntax->datum #'data)))))])
+     (with-syntax
+         ([ITA_2-encoding
+           (~>> (#'data) syntax->datum encode-ITA_2 wrap-list-in-thunks (datum->syntax #'data))]
+          [UTF8?-encoding (~>> (#'data)
+                               syntax->datum
+                               string->list
+                               sep
+                               (>< char->integer)
+                               collect
+                               wrap-list-in-thunks
+                               (datum->syntax #'data))])
        #'(thunk (if (should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
@@ -115,6 +120,9 @@
   (syntax-case data (ocm-asm-inst)
     [(ocm-asm-inst colon inst) (ocm-asm-inst-fun #'inst)]
     [else #'else]))
+; 1. Evaluate all expandables (strings, others)
+; 2. Evaluate all labels values
+; 3. Evaluate all reference values
 (define-for-syntax (resolve-row-data rows)
   (map (lambda (row)
          (syntax-case row ()
@@ -122,15 +130,21 @@
             #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
        rows))
 ; Remove all #f from the list of rows.
-(define-for-syntax (clean-rows-remove-comments rows)
-  (filter (lambda (val) (not (equal? #f (syntax->datum val)))) rows))
+(define-for-syntax clean-rows-remove-comments
+                   (flow (~> sep
+                             (pass (~> syntax->datum
+                                       (not (equal? #f))))
+                             collect)))
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
   (syntax-case syntax-object ()
     [(_ unicode a ...)
      #`(list #,@(let ([rows #'(a ...)])
-                  (datum->syntax rows
-                                 (resolve-row-data (clean-rows-remove-comments
-                                                    (syntax->list rows))))))]))
+                  (~>> (rows)
+                       syntax->list
+                       clean-rows-remove-comments
+                       resolve-row-data
+                       ; Needs the original context when going back to syntax.
+                       (datum->syntax rows))))]))
 (module+ test
   (test-equal? "Test ocm-asm-inst"
                (for/list ([item ((ocm-asm-inst #f NEXT))])
