@@ -1,17 +1,11 @@
 #lang debug racket
 ; use #R for #lang debug
 (require syntax/parse/define
-         (only-in "runtime.rkt"
-                  ocm-asm-main-memorydump
-                  ocm-asm-main-run
-                  BITTAGE
-                  RAM_SIZE
-                  MAX_INT
-                  should-use-ita?)
-         (for-syntax qi
-                     (only-in "runtime.rkt" symbol->num)
-                     (only-in "encodings.rkt" encode-ITA_2)
-                     #;(only-in debug/repl debug-repl)))
+         (prefix-in runtime: "runtime.rkt")
+         (for-syntax (prefix-in qi: qi)
+                     (prefix-in runtime: "runtime.rkt")
+                     (prefix-in encode: "encodings.rkt")
+                     #;(prefix-in debug: debug/repl)))
 (module+ test
   (require rackunit))
 (provide #%datum)
@@ -20,9 +14,12 @@
   (thunk (list (thunk dta))))
 (provide ocm-asm-dta)
 (define-for-syntax (ocm-asm-inst-fun inst)
-  (with-syntax
-      ([num
-        (~>> (inst) syntax->datum symbol->string string->symbol symbol->num (datum->syntax inst))])
+  (with-syntax ([num (qi:~>> (inst)
+                             syntax->datum
+                             symbol->string
+                             string->symbol
+                             runtime:symbol->num
+                             (datum->syntax inst))])
     #'(ocm-asm-dta #f num)))
 (define-syntax (ocm-asm-inst stx)
   (syntax-case stx ()
@@ -44,18 +41,20 @@
 (define-syntax (ocm-asm-str stx)
   (syntax-case stx ()
     [(_ data)
-     (with-syntax
-         ([ITA_2-encoding
-           (~>> (#'data) syntax->datum encode-ITA_2 wrap-list-in-thunks (datum->syntax #'data))]
-          [UTF8?-encoding (~>> (#'data)
-                               syntax->datum
-                               string->list
-                               sep
-                               (>< char->integer)
-                               collect
-                               wrap-list-in-thunks
-                               (datum->syntax #'data))])
-       #'(thunk (if (should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
+     (with-syntax ([ITA_2-encoding (qi:~>> (#'data)
+                                           syntax->datum
+                                           encode:encode-ITA_2
+                                           wrap-list-in-thunks
+                                           (datum->syntax #'data))]
+                   [UTF8?-encoding (qi:~>> (#'data)
+                                           syntax->datum
+                                           string->list
+                                           sep
+                                           (>< char->integer)
+                                           collect
+                                           wrap-list-in-thunks
+                                           (datum->syntax #'data))])
+       #'(thunk (if (runtime:should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
 (define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr)
@@ -98,12 +97,12 @@
   ;Iterate over `rows` and append the results
   (define theItems (call-the-rows-or-smth-idk-i-didnt-document-this-code rows))
   (define len (length theItems))
-  (let ([ram-size ((RAM_SIZE))])
+  (let ([ram-size ((runtime:RAM_SIZE))])
     (when (len . > . ram-size)
       (raise-user-error
        (format "Max program length is ~a. The provided program is too long. was" ram-size)
        len)))
-  (define max-int ((MAX_INT)))
+  (define max-int ((runtime:MAX_INT)))
   (define range-len (range len))
   (for/list ([item-func (for/list ([item theItems] [index range-len])
                           ; Iterate over results and call each item with the
@@ -131,20 +130,17 @@
        rows))
 ; Remove all #f from the list of rows.
 (define-for-syntax clean-rows-remove-comments
-                   (flow (~> sep
-                             (pass (~> syntax->datum
-                                       (not (equal? #f))))
-                             collect)))
+  (qi:flow (~> sep (pass (~> syntax->datum (not (equal? #f)))) collect)))
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
   (syntax-case syntax-object ()
     [(_ unicode a ...)
      #`(list #,@(let ([rows #'(a ...)])
-                  (~>> (rows)
-                       syntax->list
-                       clean-rows-remove-comments
-                       resolve-row-data
-                       ; Needs the original context when going back to syntax.
-                       (datum->syntax rows))))]))
+                  (qi:~>> (rows)
+                          syntax->list
+                          clean-rows-remove-comments
+                          resolve-row-data
+                          ; Needs the original context when going back to syntax.
+                          (datum->syntax rows))))]))
 (module+ test
   (test-equal? "Test ocm-asm-inst"
                (for/list ([item ((ocm-asm-inst #f NEXT))])
@@ -181,10 +177,10 @@
                (check-equal? ((ocm-asm-label #f begin-string) 3) (void) "return value")
                (check-equal? (labels) (make-hash '((begin-string . 3))) "modified hash")))
   (test-equal? "Test ocm-asm-str bittage 6"
-               (parameterize ([BITTAGE 6]) (apply-over-list ((ocm-asm-str "ASDF"))))
+               (parameterize ([runtime:BITTAGE 6]) (apply-over-list ((ocm-asm-str "ASDF"))))
                '(31 3 5 9 13))
   (test-equal? "Test ocm-asm-str bittage 8"
-               (parameterize ([BITTAGE 8]) (apply-over-list ((ocm-asm-str "ASDF"))))
+               (parameterize ([runtime:BITTAGE 8]) (apply-over-list ((ocm-asm-str "ASDF"))))
                '(65 83 68 70))
   #;(: wrap-nums : (Listof Exact-Nonnegative-Integer) -> (-> (Listof (-> Exact-Nonnegative-Integer))))
   (define ((wrap-nums nums))
@@ -200,7 +196,7 @@
    '(31 3 5 9 13))
   (test-case
    "Test ocm-asm-row on real data"
-   (parameterize ([BITTAGE 8] [labels (make-hash)])
+   (parameterize ([runtime:BITTAGE 8] [labels (make-hash)])
      (check-equal?
       (let ([get-item
              (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF"))])
@@ -214,7 +210,7 @@
   (test-equal?
    "Test clean-rows execution order"
    (let ([order '()])
-     (parameterize ([BITTAGE 6])
+     (parameterize ([runtime:BITTAGE 6])
        ; - First call each row.
        ; - Then call the lambdas for each rows
        ; - Then call the lambda for
@@ -238,7 +234,7 @@
    (range 15))
   (test-case
    "Test clean-rows"
-   (parameterize ([labels (make-hash)] [BITTAGE 6])
+   (parameterize ([labels (make-hash)] [runtime:BITTAGE 6])
      (check-equal?
       (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT))
                         (ocm-asm-row (ocm-asm-ref #f after-string))
@@ -257,9 +253,9 @@
   (define ita2-actualItems (thunk (clean-rows ita2-items)))
   (define commandName (string-append (path->string (find-system-path 'run-file)) " " command))
   (case command
-    [("run" "r") (ocm-asm-main-run commandName args unicode-actualItems ita2-actualItems)]
+    [("run" "r") (runtime:ocm-asm-main-run commandName args unicode-actualItems ita2-actualItems)]
     [("memorydump" "dump" "md" "d")
-     (ocm-asm-main-memorydump commandName args unicode-actualItems ita2-actualItems)]
+     (runtime:ocm-asm-main-memorydump commandName args unicode-actualItems ita2-actualItems)]
     [("help" "h" "?" "-h" "--help")
      ; TODO make this work
      (displayln (string-append "Try running the `run` or `memorydump`"
