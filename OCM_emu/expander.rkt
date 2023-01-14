@@ -7,7 +7,7 @@
                      (prefix-in encode: "encodings.rkt")
                      #;(prefix-in debug: debug/repl)))
 (module+ test
-  (require rackunit))
+  (require (prefix-in rackunit: rackunit)))
 (provide #%datum)
 (provide ocm-asm-row)
 (define-syntax-parse-rule (ocm-asm-dta pound dta:nat)
@@ -39,20 +39,16 @@
   (for/list ([num l])
     #`(thunk #,num)))
 (define-for-syntax (ocm-asm-str-ita2 data)
-                   (qi:~>> (data)
-                                           syntax->datum
-                                           encode:encode-ITA_2
-                                           wrap-list-in-thunks
-                                           (datum->syntax data)))
+  (qi:~>> (data) syntax->datum encode:encode-ITA_2 wrap-list-in-thunks (datum->syntax data)))
 (define-for-syntax (ocm-asm-str-utf8 data)
-                   (qi:~>> (data)
-                                           syntax->datum
-                                           string->list
-                                           sep
-                                           (>< char->integer)
-                                           collect
-                                           wrap-list-in-thunks
-                                           (datum->syntax data)))
+  (qi:~>> (data)
+          syntax->datum
+          string->list
+          sep
+          (>< char->integer)
+          collect
+          wrap-list-in-thunks
+          (datum->syntax data)))
 (define-syntax (ocm-asm-str stx)
   (syntax-case stx ()
     [(_ data)
@@ -137,10 +133,9 @@
   (map (lambda (row)
          (syntax-case row (ocm-asm-str ocm-asm-row)
            [(ocm-asm-row labels ... (ocm-asm-str data))
-            #`(ocm-asm-row labels ...
-                           (thunk (list #,@(if unicode
-                             (ocm-asm-str-utf8 #'data)
-                             (ocm-asm-str-ita2 #'data)))))]
+            #`(ocm-asm-row
+               labels ...
+               (thunk (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data)))))]
            [else #'else]))
        rows))
 ; Evaluate all labels values
@@ -150,8 +145,7 @@
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
   (syntax-case syntax-object ()
     [(_ unicode a ...)
-     #`(list #,@(let ([rows #'(a ...)]
-                      [is-unicode (syntax->datum #'unicode)])
+     #`(list #,@(let ([rows #'(a ...)] [is-unicode (syntax->datum #'unicode)])
                   (qi:~>> (rows)
                           syntax->list
                           clean-rows-remove-comments
@@ -162,28 +156,29 @@
                           ; Needs the original context when going back to syntax.
                           (datum->syntax rows))))]))
 (module+ test
-  (test-equal? "Test ocm-asm-inst"
-               (for/list ([item ((ocm-asm-inst #f NEXT))])
-                 (item))
-               '(3))
+  (rackunit:test-equal? "Test ocm-asm-inst"
+                        (for/list ([item ((ocm-asm-inst #f NEXT))])
+                          (item))
+                        '(3))
   #;(: apply-over-list : (All (A) (Listof (-> A)) -> (Listof A)))
   (define (apply-over-list items)
     (for/list ([item items])
       (item)))
-  (test-exn "Test ocm-asm-ref fail"
-            exn:fail:contract?
-            (parameterize ([labels (make-hash)])
-              (let ([items ((ocm-asm-ref #f after-string))]) (thunk (apply-over-list items)))))
-  (test-equal? "Test ocm-asm-ref pass"
-               (parameterize ([labels (make-hash '((after-string . 9)))])
-                 (apply-over-list ((ocm-asm-ref #f after-string))))
-               '(9))
-  (test-equal? "Test ocm-asm-ref pass out-of-order"
-               (parameterize ([labels (make-hash)])
-                 (define ref (ocm-asm-ref #f after-string))
-                 (hash-set! (labels) 'after-string 9)
-                 (apply-over-list (ref)))
-               '(9))
+  (rackunit:test-exn "Test ocm-asm-ref fail"
+                     exn:fail:contract?
+                     (parameterize ([labels (make-hash)])
+                       (let ([items ((ocm-asm-ref #f after-string))])
+                         (thunk (apply-over-list items)))))
+  (rackunit:test-equal? "Test ocm-asm-ref pass"
+                        (parameterize ([labels (make-hash '((after-string . 9)))])
+                          (apply-over-list ((ocm-asm-ref #f after-string))))
+                        '(9))
+  (rackunit:test-equal? "Test ocm-asm-ref pass out-of-order"
+                        (parameterize ([labels (make-hash)])
+                          (define ref (ocm-asm-ref #f after-string))
+                          (hash-set! (labels) 'after-string 9)
+                          (apply-over-list (ref)))
+                        '(9))
   ; Is this actually something we want?
   #|(test-equal? "Test ocm-asm-ref pass out-of-order B"
                       (parameterize ([labels (make-hash)])
@@ -192,21 +187,22 @@
                                   (hash-set! (labels) 'after-string 9)
                                   (item)))
                       '(9))|#
-  (test-case "Test ocm-asm-label"
-             (parameterize ([labels (make-hash)])
-               (check-equal? ((ocm-asm-label #f begin-string) 3) (void) "return value")
-               (check-equal? (labels) (make-hash '((begin-string . 3))) "modified hash")))
-  (test-equal? "Test ocm-asm-str bittage 6"
-               (parameterize ([runtime:BITTAGE 6]) (apply-over-list ((ocm-asm-str "ASDF"))))
-               '(31 3 5 9 13))
-  (test-equal? "Test ocm-asm-str bittage 8"
-               (parameterize ([runtime:BITTAGE 8]) (apply-over-list ((ocm-asm-str "ASDF"))))
-               '(65 83 68 70))
+  (rackunit:test-case
+   "Test ocm-asm-label"
+   (parameterize ([labels (make-hash)])
+     (rackunit:check-equal? ((ocm-asm-label #f begin-string) 3) (void) "return value")
+     (rackunit:check-equal? (labels) (make-hash '((begin-string . 3))) "modified hash")))
+  (rackunit:test-equal? "Test ocm-asm-str bittage 6"
+                        (parameterize ([runtime:BITTAGE 6]) (apply-over-list ((ocm-asm-str "ASDF"))))
+                        '(31 3 5 9 13))
+  (rackunit:test-equal? "Test ocm-asm-str bittage 8"
+                        (parameterize ([runtime:BITTAGE 8]) (apply-over-list ((ocm-asm-str "ASDF"))))
+                        '(65 83 68 70))
   #;(: wrap-nums : (Listof Exact-Nonnegative-Integer) -> (-> (Listof (-> Exact-Nonnegative-Integer))))
   (define ((wrap-nums nums))
     (for/list ([num nums])
       (thunk num)))
-  (test-equal?
+  (rackunit:test-equal?
    "Test ocm-asm-row"
    (let ([get-item (ocm-asm-row (lambda _ (void)) (lambda _ (void)) (wrap-nums '(31 3 5 9 13)))])
      (apply-over-list
@@ -214,10 +210,10 @@
        (let loop ([item (get-item)] [index 0] [items '()])
          (if (void? item) items (loop (get-item) (index . + . 1) (cons (item index) items)))))))
    '(31 3 5 9 13))
-  (test-case
+  (rackunit:test-case
    "Test ocm-asm-row on real data"
    (parameterize ([runtime:BITTAGE 8] [labels (make-hash)])
-     (check-equal?
+     (rackunit:check-equal?
       (let ([get-item
              (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF"))])
         (apply-over-list
@@ -226,8 +222,8 @@
             (if (void? item) items (loop (get-item) (index . + . 1) (cons (item index) items)))))))
       '(65 83 68 70)
       "return")
-     (check-equal? (labels) (make-hash '((hi . 0) (lol . 0))) "labels")))
-  (test-equal?
+     (rackunit:check-equal? (labels) (make-hash '((hi . 0) (lol . 0))) "labels")))
+  (rackunit:test-equal?
    "Test clean-rows execution order"
    (let ([order '()])
      (parameterize ([runtime:BITTAGE 6])
@@ -252,17 +248,17 @@
                                                    (thunk (set! order (append order '(14))) 32)))))))
      order)
    (range 15))
-  (test-case
+  (rackunit:test-case
    "Test clean-rows"
    (parameterize ([labels (make-hash)] [runtime:BITTAGE 6])
-     (check-equal?
+     (rackunit:check-equal?
       (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT))
                         (ocm-asm-row (ocm-asm-ref #f after-string))
                         (ocm-asm-row (ocm-asm-label #f begin-string) (ocm-asm-str "ASDF"))
                         (ocm-asm-row (ocm-asm-label #f after-string) (ocm-asm-inst #f SWAP))))
       '(3 7 31 3 5 9 13 2)
       "return")
-     (check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
+     (rackunit:check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
 ;(: ocm-asm-main : Unclean-Rows -> Void)
 (define (ocm-asm-main unicode-items ita2-items)
   (define pre-args
