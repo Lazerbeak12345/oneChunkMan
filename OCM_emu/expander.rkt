@@ -129,8 +129,7 @@
 (define-for-syntax clean-rows-remove-comments
   (qi:flow (~> sep (pass (~> syntax->datum (not (equal? #f)))) collect)))
 ; Evaluate all expandables (strings, others)
-(define-for-syntax (evaluate-expandables unicode rows)
-  (map (lambda (row)
+(define-for-syntax (evaluate-expandables unicode row)
          (syntax-case row (ocm-asm-str ocm-asm-row)
            [(ocm-asm-row labels ... (ocm-asm-str data) #f)
             #`(ocm-asm-row
@@ -138,7 +137,6 @@
                (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data)))
                #f)]
            [else #'else]))
-       rows))
 ; Evaluate all labels values
 (define-for-syntax (evaluate-labels rows) rows)
 ; Evaluate all reference values
@@ -150,7 +148,9 @@
                   (qi:~>> (rows)
                           syntax->list
                           clean-rows-remove-comments
-                          (evaluate-expandables is-unicode)
+                          sep
+                          (>< (evaluate-expandables is-unicode _))
+                          collect
                           evaluate-labels
                           evaluate-values
                           resolve-row-data
