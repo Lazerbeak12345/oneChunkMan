@@ -11,7 +11,7 @@
 (provide #%datum)
 (provide ocm-asm-row)
 (define-syntax-parse-rule (ocm-asm-dta pound dta:nat)
-  (thunk (list (thunk dta))))
+  (list (thunk dta)))
 (provide ocm-asm-dta)
 (define-for-syntax (ocm-asm-inst-fun inst)
   (with-syntax ([num (qi:~>> (inst)
@@ -30,7 +30,7 @@
 (provide (rename-out [ocm-asm-mb #%module-begin]))
 (define labels (make-parameter (make-hash)))
 (define-syntax-parse-rule (ocm-asm-ref percent name:id)
-  (thunk (list (thunk (hash-ref (labels) 'name)))))
+  (list (thunk (hash-ref (labels) 'name))))
 (provide ocm-asm-ref)
 (define-syntax-parse-rule (ocm-asm-label atsign name:id nl ...)
   (lambda (line-no) (hash-set! (labels) 'name line-no)))
@@ -54,7 +54,9 @@
     [(_ data)
      (with-syntax ([ITA_2-encoding (ocm-asm-str-ita2 #'data)]
                    [UTF8?-encoding (ocm-asm-str-utf8 #'data)])
-       #'(thunk (if (runtime:should-use-ita?) (list . ITA_2-encoding) (list . UTF8?-encoding))))]))
+       ; TODO this is an ugly shortterm hack. This macro is now only being used
+       ; in the unit-tests. See evaluate-expandables for the actual logic.
+       #'(list . ITA_2-encoding))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
 (define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr)
@@ -65,21 +67,19 @@
 ; - Then call the lambdas for each rows
 ; - Then call the lambda for each word in memory
 (define (ocm-asm-row-helper label-list data)
-  (define remaining-data (void))
+  (define remaining-data data)
+  (define first #t)
   ; Call to get next lambda, or void
   (thunk (if (null? remaining-data)
              (void)
-             (let ([first (void? remaining-data)])
-               (when first
-                 (set! remaining-data (data)))
-               ; We have to cast it after setting it for the first time
-               (define old-car (car remaining-data))
+             (let ([old-car (car remaining-data)])
                (set! remaining-data (cdr remaining-data))
                ; Call to get value
                (lambda (location)
                  (when first
                    (for ([label label-list])
-                     (label location)))
+                     (label location))
+                   (set! first #f))
                  old-car)))))
 ; TODO this code sucks. Figure out how it works and recreate it using only
 ; macros. Real macros. No thunks.
@@ -132,10 +132,11 @@
 (define-for-syntax (evaluate-expandables unicode rows)
   (map (lambda (row)
          (syntax-case row (ocm-asm-str ocm-asm-row)
-           [(ocm-asm-row labels ... (ocm-asm-str data))
+           [(ocm-asm-row labels ... (ocm-asm-str data) #f)
             #`(ocm-asm-row
                labels ...
-               (thunk (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data)))))]
+               (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data)))
+               #f)]
            [else #'else]))
        rows))
 ; Evaluate all labels values
@@ -157,7 +158,7 @@
                           (datum->syntax rows))))]))
 (module+ test
   (rackunit:test-equal? "Test ocm-asm-inst"
-                        (for/list ([item ((ocm-asm-inst #f NEXT))])
+                        (for/list ([item (ocm-asm-inst #f NEXT)])
                           (item))
                         '(3))
   #;(: apply-over-list : (All (A) (Listof (-> A)) -> (Listof A)))
@@ -167,17 +168,17 @@
   (rackunit:test-exn "Test ocm-asm-ref fail"
                      exn:fail:contract?
                      (parameterize ([labels (make-hash)])
-                       (let ([items ((ocm-asm-ref #f after-string))])
+                       (let ([items (ocm-asm-ref #f after-string)])
                          (thunk (apply-over-list items)))))
   (rackunit:test-equal? "Test ocm-asm-ref pass"
                         (parameterize ([labels (make-hash '((after-string . 9)))])
-                          (apply-over-list ((ocm-asm-ref #f after-string))))
+                          (apply-over-list (ocm-asm-ref #f after-string)))
                         '(9))
   (rackunit:test-equal? "Test ocm-asm-ref pass out-of-order"
                         (parameterize ([labels (make-hash)])
                           (define ref (ocm-asm-ref #f after-string))
                           (hash-set! (labels) 'after-string 9)
-                          (apply-over-list (ref)))
+                          (apply-over-list ref))
                         '(9))
   ; Is this actually something we want?
   #|(test-equal? "Test ocm-asm-ref pass out-of-order B"
@@ -193,13 +194,14 @@
      (rackunit:check-equal? ((ocm-asm-label #f begin-string) 3) (void) "return value")
      (rackunit:check-equal? (labels) (make-hash '((begin-string . 3))) "modified hash")))
   (rackunit:test-equal? "Test ocm-asm-str bittage 6"
-                        (parameterize ([runtime:BITTAGE 6]) (apply-over-list ((ocm-asm-str "ASDF"))))
+                        (parameterize ([runtime:BITTAGE 6]) (apply-over-list (ocm-asm-str "ASDF")))
                         '(31 3 5 9 13))
-  (rackunit:test-equal? "Test ocm-asm-str bittage 8"
-                        (parameterize ([runtime:BITTAGE 8]) (apply-over-list ((ocm-asm-str "ASDF"))))
-                        '(65 83 68 70))
+  ; TODO test evaluate-expandables instead
+  ;(rackunit:test-equal? "Test ocm-asm-str bittage 8"
+  ;                      (parameterize ([runtime:BITTAGE 8]) (apply-over-list (ocm-asm-str "ASDF")))
+  ;                      '(65 83 68 70))
   #;(: wrap-nums : (Listof Exact-Nonnegative-Integer) -> (-> (Listof (-> Exact-Nonnegative-Integer))))
-  (define ((wrap-nums nums))
+  (define (wrap-nums nums)
     (for/list ([num nums])
       (thunk num)))
   (rackunit:test-equal?
@@ -212,7 +214,7 @@
    '(31 3 5 9 13))
   (rackunit:test-case
    "Test ocm-asm-row on real data"
-   (parameterize ([runtime:BITTAGE 8] [labels (make-hash)])
+   (parameterize ([runtime:BITTAGE 6] [labels (make-hash)])
      (rackunit:check-equal?
       (let ([get-item
              (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF"))])
@@ -220,7 +222,7 @@
          (reverse
           (let loop ([item (get-item)] [index 0] [items '()])
             (if (void? item) items (loop (get-item) (index . + . 1) (cons (item index) items)))))))
-      '(65 83 68 70)
+      '(31 3 5 9 13)
       "return")
      (rackunit:check-equal? (labels) (make-hash '((hi . 0) (lol . 0))) "labels")))
   (rackunit:test-equal?
@@ -231,23 +233,19 @@
        ; - Then call the lambdas for each rows
        ; - Then call the lambda for
        ; each word in memory
-       (clean-rows (list (ocm-asm-row (thunk (set! order (append order '(0)))
-                                             (list (thunk (set! order (append order '(7))) 50)
-                                                   (thunk (set! order (append order '(8))) 33))))
-                         (ocm-asm-row (thunk (set! order (append order '(1)))
-                                             (list (thunk (set! order (append order '(9))) 30)
-                                                   (thunk (set! order (append order '(10))) 32))))
-                         (ocm-asm-row (lambda _ (set! order (append order '(4))))
-                                      (thunk (set! order (append order '(2)))
-                                             (list (thunk (set! order (append order '(11))) 31)
-                                                   (thunk (set! order (append order '(12))) 21))))
-                         (ocm-asm-row (lambda _ (set! order (append order '(5))))
-                                      (lambda _ (set! order (append order '(6))))
-                                      (thunk (set! order (append order '(3)))
-                                             (list (thunk (set! order (append order '(13))) 33)
-                                                   (thunk (set! order (append order '(14))) 32)))))))
+       (clean-rows (list (ocm-asm-row (list (thunk (set! order (append order '(3))) 50)
+                                            (thunk (set! order (append order '(4))) 33)))
+                         (ocm-asm-row (list (thunk (set! order (append order '(5))) 30)
+                                            (thunk (set! order (append order '(6))) 32)))
+                         (ocm-asm-row (lambda _ (set! order (append order '(0))))
+                                      (list (thunk (set! order (append order '(7))) 31)
+                                            (thunk (set! order (append order '(8))) 21)))
+                         (ocm-asm-row (lambda _ (set! order (append order '(1))))
+                                      (lambda _ (set! order (append order '(2))))
+                                      (list (thunk (set! order (append order '(9))) 33)
+                                            (thunk (set! order (append order '(10))) 32))))))
      order)
-   (range 15))
+   (range 11))
   (rackunit:test-case
    "Test clean-rows"
    (parameterize ([labels (make-hash)] [runtime:BITTAGE 6])
