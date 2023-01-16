@@ -119,12 +119,10 @@
   (syntax-case data (ocm-asm-inst)
     [(ocm-asm-inst colon inst) (ocm-asm-inst-fun #'inst)]
     [else #'else]))
-(define-for-syntax (resolve-row-data rows)
-  (map (lambda (row)
-         (syntax-case row ()
-           [(ocm-asm-row labels ... data _)
-            #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
-       rows))
+(define-for-syntax (resolve-row-data row)
+ (syntax-case row ()
+   [(ocm-asm-row labels ... data _)
+    #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
 ; Remove all #f from the list of rows.
 (define-for-syntax clean-rows-remove-comments
   (qi:flow (~> sep (pass (~> syntax->datum (not (equal? #f)))) collect)))
@@ -137,9 +135,9 @@
                     #f)]
     [else #'else]))
 ; Evaluate all labels values
-(define-for-syntax (evaluate-labels rows) rows)
+(define-for-syntax (evaluate-labels row) row)
 ; Evaluate all reference values
-(define-for-syntax (evaluate-values rows) rows)
+(define-for-syntax (evaluate-values row) row)
 (define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
   (syntax-case syntax-object ()
     [(_ unicode a ...)
@@ -149,10 +147,10 @@
                           clean-rows-remove-comments
                           sep
                           (>< (evaluate-expandables is-unicode _))
+                          (>< evaluate-labels)
+                          (>< evaluate-values)
+                          (>< resolve-row-data)
                           collect
-                          evaluate-labels
-                          evaluate-values
-                          resolve-row-data
                           ; Needs the original context when going back to syntax.
                           (datum->syntax rows))))]))
 (module+ test
