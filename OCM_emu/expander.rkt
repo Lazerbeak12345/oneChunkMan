@@ -145,12 +145,13 @@
                   (qi:~>> (rows)
                           syntax->list
                           clean-rows-remove-comments
-                          sep
-                          (>< (evaluate-expandables is-unicode _))
-                          (>< evaluate-labels)
-                          (>< evaluate-values)
-                          (>< resolve-row-data)
-                          collect
+                          △
+                          (>< (qi:☯ (~>>
+                                      (evaluate-expandables is-unicode)
+                                      evaluate-labels
+                                      evaluate-values
+                                      resolve-row-data)))
+                          ▽
                           ; Needs the original context when going back to syntax.
                           (datum->syntax rows))))]))
 (module+ test
