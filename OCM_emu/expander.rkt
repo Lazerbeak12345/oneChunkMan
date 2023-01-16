@@ -120,9 +120,8 @@
     [(ocm-asm-inst colon inst) (ocm-asm-inst-fun #'inst)]
     [else #'else]))
 (define-for-syntax (resolve-row-data row)
- (syntax-case row ()
-   [(ocm-asm-row labels ... data _)
-    #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
+  (syntax-case row ()
+    [(ocm-asm-row labels ... data _) #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
 ; Remove all #f from the list of rows.
 (define-for-syntax clean-rows-remove-comments
   (qi:flow (~> sep (pass (~> syntax->datum (not (equal? #f)))) collect)))
@@ -146,11 +145,10 @@
                           syntax->list
                           clean-rows-remove-comments
                           △
-                          (>< (qi:☯ (~>>
-                                      (evaluate-expandables is-unicode)
-                                      evaluate-labels
-                                      evaluate-values
-                                      resolve-row-data)))
+                          (>< (qi:☯ (~>> (evaluate-expandables is-unicode)
+                                         evaluate-labels
+                                         evaluate-values
+                                         resolve-row-data)))
                           ▽
                           ; Needs the original context when going back to syntax.
                           (datum->syntax rows))))]))
