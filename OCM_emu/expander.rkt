@@ -121,16 +121,15 @@
     [else #'else]))
 (define-for-syntax (resolve-row-data row)
   (syntax-case row ()
-    [(ocm-asm-row labels ... data _) #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
+    [(ocm-asm-row labels ... data) #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
 ; Remove all #f from the list of rows.
 (define-for-syntax clean-rows-remove-comments (qi:☯ (pass (~> syntax->datum (not (equal? #f))))))
 ; Evaluate all expandables (strings, others)
 (define-for-syntax (evaluate-expandables unicode row)
   (syntax-case row (ocm-asm-str ocm-asm-row)
-    [(ocm-asm-row labels ... (ocm-asm-str data) #f)
+    [(ocm-asm-row labels ... (ocm-asm-str data))
      #`(ocm-asm-row labels ...
-                    (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data)))
-                    #f)]
+                    (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data))))]
     [else #'else]))
 ; Evaluate all labels values
 (define-for-syntax (evaluate-labels row) row)
