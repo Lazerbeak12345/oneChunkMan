@@ -123,8 +123,7 @@
   (syntax-case row ()
     [(ocm-asm-row labels ... data _) #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
 ; Remove all #f from the list of rows.
-(define-for-syntax clean-rows-remove-comments
-  (qi:☯ (pass (~> syntax->datum (not (equal? #f))))))
+(define-for-syntax clean-rows-remove-comments (qi:☯ (pass (~> syntax->datum (not (equal? #f))))))
 ; Evaluate all expandables (strings, others)
 (define-for-syntax (evaluate-expandables unicode row)
   (syntax-case row (ocm-asm-str ocm-asm-row)
