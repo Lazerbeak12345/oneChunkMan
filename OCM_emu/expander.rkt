@@ -144,6 +144,8 @@
                           △
                           clean-rows-remove-comments
                           (>< (qi:☯ (~>> (evaluate-expandables is-unicode)
+                                         ; TODO expand expandables
+                                         ; TODO flatten
                                          evaluate-labels
                                          evaluate-values
                                          resolve-row-data)))
