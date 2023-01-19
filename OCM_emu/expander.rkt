@@ -59,7 +59,7 @@
        #'(list . ITA_2-encoding))]))
 (provide ocm-asm-str)
 ;(define-type Unclean-Rows (Listof Unclean-Row))
-(define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr nl)
+(define-syntax-parse-rule (ocm-asm-row label-list:expr ... data:expr)
   (ocm-asm-row-helper (list label-list ...) data))
 #;(define-type Unclean-Row
                (-> (U (Exact-Nonnegative-Integer -> (-> Exact-Nonnegative-Integer)) Void)))
@@ -121,17 +121,19 @@
     [else #'else]))
 (define-for-syntax (resolve-row-data row)
   (syntax-case row ()
-    [(ocm-asm-row labels ... data nl)
-     #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data) #f)]))
+    [(ocm-asm-row labels ... data) #`(ocm-asm-row labels ... #,(resolve-row-data-funs #'data))]))
 ; Remove all #f from the list of rows.
 (define-for-syntax clean-rows-remove-comments (qi:☯ (pass (~> syntax->datum (not (equal? #f))))))
+(define-for-syntax (remove-row-nls row)
+  (syntax-case row (ocm-asm-row)
+    [(ocm-asm-row a ... #f)
+     #'(ocm-asm-row a ...)]))
 ; Evaluate all expandables (strings, others)
 (define-for-syntax (evaluate-expandables unicode row)
   (syntax-case row (ocm-asm-str ocm-asm-row)
-    [(ocm-asm-row labels ... (ocm-asm-str data) nl)
+    [(ocm-asm-row labels ... (ocm-asm-str data))
      #`(ocm-asm-row labels ...
-                    (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data)))
-                    #f)]
+                    (list #,@(if unicode (ocm-asm-str-utf8 #'data) (ocm-asm-str-ita2 #'data))))]
     [else #'else]))
 ; Evaluate all labels values
 (define-for-syntax (evaluate-labels row) row)
@@ -145,7 +147,8 @@
                           syntax->list
                           △
                           clean-rows-remove-comments
-                          (>< (qi:☯ (~>> (evaluate-expandables is-unicode)
+                          (>< (qi:☯ (~>> remove-row-nls
+                                         (evaluate-expandables is-unicode)
                                          ; TODO expand expandables
                                          ; TODO flatten
                                          evaluate-labels
@@ -203,7 +206,7 @@
       (thunk num)))
   (rackunit:test-equal?
    "Test ocm-asm-row"
-   (let ([get-item (ocm-asm-row (lambda _ (void)) (lambda _ (void)) (wrap-nums '(31 3 5 9 13)) #f)])
+   (let ([get-item (ocm-asm-row (lambda _ (void)) (lambda _ (void)) (wrap-nums '(31 3 5 9 13)))])
      (apply-over-list
       (reverse
        (let loop ([item (get-item)] [index 0] [items '()])
@@ -214,7 +217,7 @@
    (parameterize ([runtime:BITTAGE 6] [labels (make-hash)])
      (rackunit:check-equal?
       (let ([get-item
-             (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF") #f)])
+             (ocm-asm-row (ocm-asm-label #f hi) (ocm-asm-label #f lol) (ocm-asm-str "ASDF"))])
         (apply-over-list
          (reverse
           (let loop ([item (get-item)] [index 0] [items '()])
@@ -231,30 +234,26 @@
        ; - Then call the lambda for
        ; each word in memory
        (clean-rows (list (ocm-asm-row (list (thunk (set! order (append order '(3))) 50)
-                                            (thunk (set! order (append order '(4))) 33))
-                                      #f)
+                                            (thunk (set! order (append order '(4))) 33)))
                          (ocm-asm-row (list (thunk (set! order (append order '(5))) 30)
-                                            (thunk (set! order (append order '(6))) 32))
-                                      #f)
+                                            (thunk (set! order (append order '(6))) 32)))
                          (ocm-asm-row (lambda _ (set! order (append order '(0))))
                                       (list (thunk (set! order (append order '(7))) 31)
-                                            (thunk (set! order (append order '(8))) 21))
-                                      #f)
+                                            (thunk (set! order (append order '(8))) 21)))
                          (ocm-asm-row (lambda _ (set! order (append order '(1))))
                                       (lambda _ (set! order (append order '(2))))
                                       (list (thunk (set! order (append order '(9))) 33)
-                                            (thunk (set! order (append order '(10))) 32))
-                                      #f))))
+                                            (thunk (set! order (append order '(10))) 32))))))
      order)
    (range 11))
   (rackunit:test-case
    "Test clean-rows"
    (parameterize ([labels (make-hash)] [runtime:BITTAGE 6])
      (rackunit:check-equal?
-      (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT) #f)
-                        (ocm-asm-row (ocm-asm-ref #f after-string) #f)
-                        (ocm-asm-row (ocm-asm-label #f begin-string) (ocm-asm-str "ASDF") #f)
-                        (ocm-asm-row (ocm-asm-label #f after-string) (ocm-asm-inst #f SWAP) #f)))
+      (clean-rows (list (ocm-asm-row (ocm-asm-inst #f NEXT))
+                        (ocm-asm-row (ocm-asm-ref #f after-string))
+                        (ocm-asm-row (ocm-asm-label #f begin-string) (ocm-asm-str "ASDF"))
+                        (ocm-asm-row (ocm-asm-label #f after-string) (ocm-asm-inst #f SWAP))))
       '(3 7 31 3 5 9 13 2)
       "return")
      (rackunit:check-equal? (labels) (make-hash '((after-string . 7) (begin-string . 2))) "labels"))))
