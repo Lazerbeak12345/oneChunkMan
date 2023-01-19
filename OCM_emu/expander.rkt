@@ -137,21 +137,23 @@
 (define-for-syntax (evaluate-labels row) row)
 ; Evaluate all reference values
 (define-for-syntax (evaluate-values row) row)
-(define-syntax-rule (better-clean-rows unicode a ...) ; Did you know that you have rows?
-  #`(list #,@(let ([rows #'(a ...)] [is-unicode (syntax->datum #'unicode)])
-               (qi:~>> (rows)
-                       syntax->list
-                       △
-                       clean-rows-remove-comments
-                       (>< (qi:☯ (~>> (evaluate-expandables is-unicode)
-                                      ; TODO expand expandables
-                                      ; TODO flatten
-                                      evaluate-labels
-                                      evaluate-values
-                                      resolve-row-data)))
-                       ▽
-                       ; Needs the original context when going back to syntax.
-                       (datum->syntax rows)))))
+(define-syntax (better-clean-rows syntax-object) ; Did you know that you have rows?
+  (syntax-case syntax-object ()
+    [(_ unicode a ...)
+     #`(list #,@(let ([rows #'(a ...)] [is-unicode (syntax->datum #'unicode)])
+                  (qi:~>> (rows)
+                          syntax->list
+                          △
+                          clean-rows-remove-comments
+                          (>< (qi:☯ (~>> (evaluate-expandables is-unicode)
+                                         ; TODO expand expandables
+                                         ; TODO flatten
+                                         evaluate-labels
+                                         evaluate-values
+                                         resolve-row-data)))
+                          ▽
+                          ; Needs the original context when going back to syntax.
+                          (datum->syntax rows))))]))
 (module+ test
   (rackunit:test-equal? "Test ocm-asm-inst"
                         (for/list ([item (ocm-asm-inst #f NEXT)])
@@ -288,6 +290,8 @@
                                " run\n"
                                "\tr\n"))]
     [else (raise-user-error (format "`~a` is an invalid command. try `help`" command))]))
-(define-syntax-rule (ocm-asm items ...)
-  #'(ocm-asm-main (better-clean-rows #t items ...) (better-clean-rows #f items ...)))
+(define-syntax (ocm-asm syntax-object)
+  (syntax-case syntax-object ()
+    [(_ items ...)
+     #'(ocm-asm-main (better-clean-rows #t items ...) (better-clean-rows #f items ...))]))
 (provide ocm-asm)
